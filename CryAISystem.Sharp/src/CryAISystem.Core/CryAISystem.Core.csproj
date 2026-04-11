@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>CryAISystem</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\CryPhysics.Sharp\src\CryPhysics.Core\CryPhysics.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    Files containing literal C++ -> C# ports that are compile-deferred until their
+    CryPhysics / CryCommon dependencies are themselves literally ported.
+    The .cs files exist on disk for review and will be re-enabled by removing
+    the entry below as soon as the dep types land. See deferred.md for context.
+  -->
+</Project>

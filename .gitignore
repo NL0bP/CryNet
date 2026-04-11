@@ -1,0 +1,94 @@
+# ============================================================================
+# .NET / C# build artifacts
+# ============================================================================
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+*.dbmdl
+*.dbproj.schemaview
+*.jfm
+*.pfx
+*.publishsettings
+*.swp
+*.log
+*.vs/
+.vs/
+
+# Build outputs
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio cache files
+*.[Cc]ache
+!*.[Cc]ache/
+ClientBin/
+~$*
+*~
+*.dbmdl
+*.publishsettings
+node_modules/
+orleans.codegen.cs
+
+# Test results
+TestResults/
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# NCrunch
+_NCrunch_*
+.*crunch*.local.xml
+nCrunchTemp_*
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+# ============================================================================
+# Lumberyard / CryEngine source (huge - kept locally only)
+# ============================================================================
+dev/
+3rdParty/
+LumberyardLauncher.bat
+README.pdf
+README.txt
+LICENSE.txt
+
+# ============================================================================
+# Workspace / IDE / OS
+# ============================================================================
+.claude/
+.vscode/
+.history/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.temp
+
+# Plans and scratch (keep locally, don't push)
+plano_navegacao_bai.md
