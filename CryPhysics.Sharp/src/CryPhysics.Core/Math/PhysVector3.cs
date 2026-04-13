@@ -143,6 +143,15 @@ public struct PhysVector3 : IEquatable<PhysVector3>
         return 0f;
     }
 
+    /// Port of `Vec3 Vec3::GetNormalized() const` from Cry_Vector3.h
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public PhysVector3 GetNormalized()
+    {
+        float lenSq = X * X + Y * Y + Z * Z;
+        float rlen = 1f / MathF.Sqrt(lenSq);
+        return new PhysVector3(X * rlen, Y * rlen, Z * rlen);
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public PhysVector3 GetNormalizedSafe()
     {
@@ -167,6 +176,25 @@ public struct PhysVector3 : IEquatable<PhysVector3>
         return safe;
     }
 
+    /// Static `Vec3::Distance(a, b)` — Euclidean distance
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float Distance(in PhysVector3 a, in PhysVector3 b)
+    {
+        float dx = a.X - b.X, dy = a.Y - b.Y, dz = a.Z - b.Z;
+        return MathF.Sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    /// Static `Vec3::DistanceSq2D(a, b)` — squared 2D distance
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float DistanceSq2D(in PhysVector3 a, in PhysVector3 b)
+    {
+        float dx = a.X - b.X, dy = a.Y - b.Y;
+        return dx * dx + dy * dy;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public float GetLength() => MathF.Sqrt(X * X + Y * Y + Z * Z);
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public float GetLengthSquared() => X * X + Y * Y + Z * Z;
 
@@ -174,7 +202,24 @@ public struct PhysVector3 : IEquatable<PhysVector3>
     public float GetLengthSquared2D() => X * X + Y * Y;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public float len() => MathF.Sqrt(X * X + Y * Y + Z * Z);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public float len2() => X * X + Y * Y + Z * Z;
+
+    /// <summary>Set the length of this vector to the given value (preserving direction).</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void SetLength(float newLength)
+    {
+        float curLen = Length();
+        if (curLen > 1e-20f)
+        {
+            float scale = newLength / curLen;
+            X *= scale;
+            Y *= scale;
+            Z *= scale;
+        }
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool IsZero(float epsilon = 0f)
@@ -236,6 +281,14 @@ public struct PhysVector3 : IEquatable<PhysVector3>
         return new PhysVector3(-Y, X, 0);
     }
 
+    /// <summary>Squared distance between two points — CryEngine Distance::Point_PointSq.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float Distance_Point_PointSq(in PhysVector3 a, in PhysVector3 b)
+    {
+        float dx = a.X - b.X, dy = a.Y - b.Y, dz = a.Z - b.Z;
+        return dx * dx + dy * dy + dz * dz;
+    }
+
     // Conversion to/from System.Numerics.Vector3
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static implicit operator Vector3(in PhysVector3 v) => new(v.X, v.Y, v.Z);
@@ -250,6 +303,44 @@ public struct PhysVector3 : IEquatable<PhysVector3>
     public static bool operator ==(in PhysVector3 a, in PhysVector3 b) => a.X == b.X && a.Y == b.Y && a.Z == b.Z;
     public static bool operator !=(in PhysVector3 a, in PhysVector3 b) => !(a == b);
     public override string ToString() => $"({X:F4}, {Y:F4}, {Z:F4})";
+
+    /// <summary>Port of Vec3::GetDistance — Euclidean distance to another vector.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public float GetDistance(in PhysVector3 other)
+    {
+        float dx = X - other.X, dy = Y - other.Y, dz = Z - other.Z;
+        return MathF.Sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    /// <summary>Port of Vec3::NormalizeSafe — normalize in place, return zero if too small.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public PhysVector3 NormalizeSafeVec()
+    {
+        float len = Length();
+        if (len > 1e-8f)
+        {
+            float rlen = 1.0f / len;
+            X *= rlen; Y *= rlen; Z *= rlen;
+        }
+        else
+        {
+            X = 0; Y = 0; Z = 0;
+        }
+        return this;
+    }
+
+    /// <summary>Port of Vec3::NormalizeSafe(defaultVec) — normalize, use default if too small.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public PhysVector3 NormalizeSafeVec(PhysVector3 safe)
+    {
+        float len = Length();
+        if (len > 1e-8f)
+        {
+            float rlen = 1.0f / len;
+            return new PhysVector3(X * rlen, Y * rlen, Z * rlen);
+        }
+        return safe;
+    }
 }
 
 /// <summary>
@@ -297,6 +388,13 @@ public struct PhysVector2 : IEquatable<PhysVector2>
     public static PhysVector2 operator *(float s, in PhysVector2 a) => new(a.X * s, a.Y * s);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public float Dot(in PhysVector2 other) => X * other.X + Y * other.Y;
+
+    /// Port of `float Vec2::GetLength2() const` — returns squared length.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public float GetLength2() => X * X + Y * Y;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public float LengthSq() => X * X + Y * Y;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -328,6 +426,39 @@ public struct PhysVector2 : IEquatable<PhysVector2>
     public static bool operator ==(in PhysVector2 a, in PhysVector2 b) => a.X == b.X && a.Y == b.Y;
     public static bool operator !=(in PhysVector2 a, in PhysVector2 b) => !(a == b);
     public override string ToString() => $"({X:F4}, {Y:F4})";
+
+    /// <summary>Port of Vec2::GetNormalized() — returns normalized copy.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public PhysVector2 GetNormalized() => Normalized();
+
+    /// <summary>Port of Vec2::GetNormalizedSafe(const Vec2& safe) — returns normalized copy or safe if too small.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public PhysVector2 GetNormalizedSafe(PhysVector2 safe)
+    {
+        float lenSq = LengthSq();
+        if (lenSq > 0.00001f)
+        {
+            float rlen = 1f / MathF.Sqrt(lenSq);
+            return new PhysVector2(X * rlen, Y * rlen);
+        }
+        return safe;
+    }
+
+    /// <summary>Port of Vec2::Cross(const Vec2& v) — 2D cross product (returns scalar).</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public float Cross(in PhysVector2 other) => X * other.Y - Y * other.X;
+
+    /// <summary>Port of Vec2::zero() — sets components to zero in-place.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void zero() { X = 0; Y = 0; }
+
+    /// <summary>Unary negation operator.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static PhysVector2 operator -(in PhysVector2 a) => new(-a.X, -a.Y);
+
+    /// <summary>Division operator.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static PhysVector2 operator /(in PhysVector2 a, float s) => new(a.X / s, a.Y / s);
 }
 
 /// <summary>

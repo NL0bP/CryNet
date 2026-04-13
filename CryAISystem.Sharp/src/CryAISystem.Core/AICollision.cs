@@ -280,6 +280,14 @@ public static class AICollision
         return CheckWalkability(origin, target, radius, ref finalFloor, ref flatFloor);
     }
 
+    // 3-arg overload for NavPath.cs — convenience wrapper
+    public static bool CheckWalkability(Vec3 origin, Vec3 target, float radius)
+    {
+        Vec3 finalFloor = new Vec3(0, 0, 0);
+        bool flatFloor = false;
+        return CheckWalkability(origin, target, radius, ref finalFloor, ref flatFloor);
+    }
+
     public static bool OverlapTorsoSegment(Vec3 startOBB, Vec3 endOBB, float radius, List<IPhysicalEntity> overlapTorsoEntities)
     {
         if (overlapTorsoEntities.Count == 0)
@@ -1443,7 +1451,7 @@ public static class AICollision
     // The literal port references them by name; full literal CryCommon ports of those headers
     // will define them. Until then, these placeholders preserve the call shape.
     private const int geom_colltype0 = 0;
-    private const int geom_colltype_player = 0;
+    public const int geom_colltype_player = 0;
     private const int ent_allocate_list = 0;
     private const int rwi_ignore_noncolliding = 0;
     private const int rwi_stop_at_pierceable = 0;

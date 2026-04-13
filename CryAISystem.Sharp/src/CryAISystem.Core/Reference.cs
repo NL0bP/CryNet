@@ -342,7 +342,7 @@ public static class RefCast
 /**
 * Typed weak reference.
 */
-public class CWeakRef<T> : CAbstractRef<T> where T : class
+public partial class CWeakRef<T> : CAbstractRef<T> where T : class
 {
     // friend class CObjectContainer;
     // friend class CAbstractRef<T>;

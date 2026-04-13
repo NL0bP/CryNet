@@ -709,6 +709,7 @@ public class CAIObject : IAIObject
 
     // Cast helpers (kept for downstream forward shells)
     public CAIActor CastToCAIActor() { return this as CAIActor; }
+    public virtual bool IsAgent() { return CastToCAIActor() != null; }
     public virtual CPipeUser CastToCPipeUser() { return null; }
     public virtual CPuppet CastToCPuppet() { return null; }
     // Patches added session 4 — port of IAIObject.h CastTo* methods (the C++ uses _fastcast bools;
@@ -826,6 +827,17 @@ public enum EAIEvent : ushort
     AIEVENT_ADJUSTPATH = 26,
     AIEVENT_LOWHEALTH = 27,
     AIEVENT_ONBULLETRAIN = 28,
+    // Player stunt events — IAgent.h lines 130-139
+    AIEVENT_PLAYER_STUNT_SPRINT = 101,
+    AIEVENT_PLAYER_STUNT_JUMP = 102,
+    AIEVENT_PLAYER_STUNT_PUNCH = 103,
+    AIEVENT_PLAYER_STUNT_THROW = 104,
+    AIEVENT_PLAYER_STUNT_THROW_NPC = 105,
+    AIEVENT_PLAYER_THROW = 106,
+    AIEVENT_PLAYER_STUNT_CLOAK = 107,
+    AIEVENT_PLAYER_STUNT_UNCLOAK = 108,
+    AIEVENT_PLAYER_STUNT_ARMORED = 109,
+    AIEVENT_PLAYER_STAMP_MELEE = 110,
 }
 
 // EAIObjectType — literal port of IAgent.h #define values
@@ -862,6 +874,25 @@ public enum EAIObjectType : ushort
     AIANCHOR_COMBAT_HIDESPOT_SECONDARY = 330,
 }
 
+// EAgentAvoidanceAbilities — literal port of IAgent.h lines 591-606
+[System.Flags]
+public enum EAgentAvoidanceAbilities : int
+{
+    eAvoidance_NONE = 0,
+
+    eAvoidance_Vehicles = 0x01,             // Agent can avoid vehicles
+    eAvoidance_Actors = 0x02,               // Agent can avoid puppets - DEPRECATED
+    eAvoidance_Players = 0x04,              // Agent can avoid players - DEPRECATED
+
+    eAvoidance_StaticObstacle = 0x10,       // Agent can avoid static physical objects (non-pushable)
+    eAvoidance_PushableObstacle = 0x20,     // Agent can avoid pushable objects
+
+    eAvoidance_DamageRegion = 0x100,        // Agent can avoid damage regions
+
+    eAvoidance_ALL = 0xFFFF,
+    eAvoidance_DEFAULT = eAvoidance_ALL,    // Avoid all by default
+}
+
 [System.Flags]
 public enum EAIFAFlags : uint
 {
@@ -879,22 +910,23 @@ public enum EAIFAFlags : uint
     AIFAF_PHYSICAL_VISIBILITY_ONLY = 1 << 10,
 }
 
-// Vision change hints — literal port of VisionMapTypes.h
-public enum EChangeHint
+// Vision change hints — literal port of IVisionMap.h EChangeHint
+public enum EChangeHint : uint
 {
-    eChangedAll = 0xFFFFFFF,
-    eChangedPosition = 1 << 0,
-    eChangedSightRange = 1 << 1,
-    eChangedFOV = 1 << 2,
-    eChangedTypeMask = 1 << 3,
-    eChangedTypesToObserveMask = 1 << 4,
-    eChangedFactionsToObserveMask = 1 << 5,
-    eChangedFaction = 1 << 6,
-    eChangedSkipList = 1 << 7,
-    eChangedCallback = 1 << 8,
-    eChangedUserConditionCallback = 1 << 9,
-    eChangedEntityId = 1 << 10,
-    eChangedPriority = 1 << 11,
+    eChangedPosition = 1u << 0,
+    eChangedFactionsToObserveMask = 1u << 1,
+    eChangedTypesToObserveMask = 1u << 2,
+    eChangedSightRange = 1u << 3,
+    eChangedFaction = 1u << 4,
+    eChangedTypeMask = 1u << 5,
+    eChangedCallback = 1u << 6,
+    eChangedUserData = 1u << 7,
+    eChangedSkipList = 1u << 8,
+    eChangedOrientation = 1u << 9,
+    eChangedFOV = 1u << 10,
+    eChangedRaycastFlags = 1u << 11,
+    eChangedEntityId = 1u << 12,
+    eChangedAll = 0xffffffff,
 }
 
 // Observable types
@@ -924,6 +956,10 @@ public class SAIEVENT
     public string psz; // bullet rain reactor name
     public bool bFuzzySight;
     public float fThreatRange;
+    // Added for AIVehicle.cpp literal port
+    public bool bSetObserver;
+    // Added for Puppet.cpp literal port
+    public Vec3 vForcedNavigation;
 }
 
 // EEntityEvent — literal port of IEntity.h enum (subset)
@@ -1011,23 +1047,31 @@ public enum EEntityFlag : uint
 // ObservableParams — literal port of VisionMapTypes.h struct
 public class ObservableParams
 {
-    public const int MaxPositionsCount = 6;
-    public const int MaxSkipListSize = 8;
+    public const int MaxPositionCount = 6;
+    public const int MaxPositionsCount = MaxPositionCount; // alias
+    public const int MaxSkipListSize = 32;
 
     public uint typeMask;
     public uint factionsToObserveMask;
     public uint typesToObserveMask;
     public uint entityId;
     public uint8 faction;
-    public uint observablePositionsCount;
-    public Vec3[] observablePositions = new Vec3[MaxPositionsCount];
+    public int observablePositionsCount;
+    public Vec3[] observablePositions = new Vec3[MaxPositionCount];
     public uint skipListSize;
     public IPhysicalEntity[] skipList = new IPhysicalEntity[MaxSkipListSize];
+    // Added for Puppet.cpp literal port
+    public uint userData;
+    // Added for VisionMap.cpp literal port
+    public System.Action<VisionID, ObserverParams, VisionID, ObservableParams, bool> callback;
 }
 
 public class PhysSkipList : System.Collections.Generic.List<IPhysicalEntity> { }
 public class IAIDebugRecord { }
-public class CRecorderUnit { }
+public class CRecorderUnit : IAIDebugRecord
+{
+    public void RecordEvent(IAIRecordable.e_AIDbgEvent eventArg, ref IAIRecordable.RecorderEventData pEventData) { /* impl pending Phase 11 */ }
+}
 public class CRecordable { }
 
 // CFormation — Phase 9 forward decl + INVALID_FORMATION_ID const
@@ -1036,9 +1080,25 @@ public class CFormation
     public const int INVALID_FORMATION_ID = -1;
     public int GetId() { return INVALID_FORMATION_ID; /* impl pending Phase 9 */ }
     public void SetUpdateSight(float range, float minTime, float maxTime) { /* impl pending */ }
+    public void Update() { /* impl pending Phase 9 */ }
+    // Added for MoveOp.cpp literal port (Phase 4)
+    public CPathMarker GetPathMarker() { return null; /* impl pending Phase 9 */ }
+    public CAIObject GetOwner() { return null; /* impl pending Phase 9 */ }
+    public int GetPointIndex(CWeakRef<CAIObject> weakRef) { return -1; /* impl pending Phase 9 */ }
+    public void GetPointOffset(int pointIndex, ref Vec3 offset) { /* impl pending Phase 9 */ }
 }
 
-public struct VisionID { public uint id; }
+public struct VisionID
+{
+    public uint id;
+    public string m_debugName;
+    public VisionID(uint id, string name = null) { this.id = id; m_debugName = name; }
+    public bool IsNil() { return id == 0; }
+    public static implicit operator bool(VisionID v) => v.id != 0;
+    public static bool operator !(VisionID v) => v.id == 0;
+    public static implicit operator uint(VisionID v) => v.id;
+    public static implicit operator VisionID(uint v) => new VisionID { id = v };
+}
 // Vec2 alias = CryPhysics.Math.PhysVector2 (CryPhysicsAliases.cs).
 
 // Vec3 helper extensions / constants needed by literal port

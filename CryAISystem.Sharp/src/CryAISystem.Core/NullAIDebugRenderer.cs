@@ -88,6 +88,6 @@ public interface IAIDebugRenderer
     void TextToScreen(float fX, float fY, string format, params object[] args);
 }
 
-public struct ColorF { public float r, g, b, a; }
+public struct ColorF { public float r, g, b, a; public ColorF(float r, float g, float b, float a = 1.0f) { this.r = r; this.g = g; this.b = b; this.a = a; } public static implicit operator ColorB(ColorF c) { return new ColorB((uint8)(c.r*255), (uint8)(c.g*255), (uint8)(c.b*255), (uint8)(c.a*255)); } }
 public class ITexture { }
 // OBB / Matrix34 / EBoundingBoxDrawStyle live in CryCommon/Cry_Geo.cs (literal port).

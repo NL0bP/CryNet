@@ -283,6 +283,12 @@ public class StatusPos : PhysicsStatusBase
     public PhysVector3 pos { get => Position; set => Position = value; }
     public PhysQuaternion q { get => Orientation; set => Orientation = value; }
     public float scale { get => Scale; set => Scale = value; }
+    // Patched for CryAISystem.Sharp: iSimClass alias (used in CheckAndAddPhysEntity)
+    public int iSimClass => SimClass;
+
+    // Patched for CryAISystem.Sharp AIActor.cpp: ipart (part index for iteration), pGeomProxy (geometry proxy)
+    public int ipart { get; set; }
+    public object pGeomProxy { get; set; }
 
     /// Port of pe_status_pos's `Vec3 BBox[2]` array — returns a 2-element array view.
     /// Read accessors mirror the C++ `status.BBox[0]` / `status.BBox[1]` syntax.

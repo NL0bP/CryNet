@@ -327,5 +327,4 @@ public class CHashSpace<T, TraitsT>
     private uint m_totalNumObjects;
 }
 
-// CCryFile shell — pending CryFile.h port
-public class CCryFile { }
+// CCryFile defined in Graph.cs

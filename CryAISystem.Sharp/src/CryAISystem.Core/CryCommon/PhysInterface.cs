@@ -128,6 +128,7 @@ public class WriteLockCond
 public interface IGeometry
 {
     void SetData(object boxPrim);
+    void GetBBox(ref primitives.box bbox);
 }
 
 // IGeomManager — subset
@@ -169,6 +170,10 @@ public interface IPhysicalWorld
 
     IGeomManager GetGeomManager();
     IPhysUtils GetPhysUtils();
+
+    // RayWorldIntersection — used by AIVehicle.CheckExplosion (physinterface.h)
+    int RayWorldIntersection(Vec3 org, Vec3 dir, int objtypes, int flags,
+        ray_hit hit, int nMaxHits, CryPhysics.Entities.IPhysicalEntity[] pSkipEnts, int nSkipEnts);
 
     // Nested SPWIParams — used by OverlapTorsoSegment
     public class SPWIParams

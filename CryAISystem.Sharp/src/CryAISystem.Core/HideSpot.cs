@@ -86,15 +86,5 @@ public class SHideSpot
 // typedef std::multimap<float, SHideSpot> MultimapRangeHideSpots;
 // (already defined in Puppet.cs as alias)
 
-// Forward decls — full literal ports pending
-public class GraphNode
-{
-    public IAISystem_ENavigationType navType;
-    public WaypointNavData GetWaypointNavData() { return null; }
-}
-public class WaypointNavData
-{
-    public EWaypointNodeType type;
-}
-public enum EWaypointNodeType { WNT_UNSET = 0, WNT_HIDESECONDARY }
+// GraphNode, WaypointNavData, EWaypointNodeType are defined in GraphStructures.cs
 public class CQueryEvent { }

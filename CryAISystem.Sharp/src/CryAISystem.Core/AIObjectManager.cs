@@ -579,6 +579,19 @@ public partial class CAIObjectManager : IAIObjectManager, IEntityPoolListener
         AILog.AILogComment("CAIObjectManager::CreateDummyObject {0} ({1})", pObject.GetName(), pObject);
     }
 
+    // Overloads accepting ESubType directly (used by PipeUser literal port)
+    public void CreateDummyObject(CStrongRef<CAIObject> refArg, string name, ESubType type, uint requiredID = 0)
+    {
+        CreateDummyObject(refArg, name, MapSubType(type), requiredID);
+    }
+
+    public void CreateDummyObject(CCountedRef<CAIObject> refArg, string name, ESubType type, uint requiredID = 0)
+    {
+        CreateDummyObject(refArg, name, MapSubType(type), requiredID);
+    }
+
+    private static CAIObjectESubType MapSubType(ESubType t) => t == ESubType.STP_SPECIAL ? CAIObjectESubType.STP_SPECIAL : CAIObjectESubType.STP_NONE;
+
     public CAIObject GetAIObjectByName(string pName)
     {
         foreach (var kv in m_Objects)

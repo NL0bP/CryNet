@@ -16,9 +16,13 @@ public class SSystemGlobalEnvironment
     public IRenderer pRenderer;
     public IPhysicalWorld pPhysicalWorld;
     public IAISystemForwardDecl pAISystem;
+    public I3DEngine p3DEngine;
 
+    public bool bMultiplayer;
     public bool IsEditor() { return false; }
+    public bool IsEditing() { return false; }
     public bool IsDedicated() { return false; }
+    public IScriptSystem pScriptSystem;
 }
 
 public interface ISystem
@@ -26,6 +30,9 @@ public interface ISystem
     IScriptSystem GetIScriptSystem();
     XmlNodeRef LoadXmlFromFile(string sFilename);
     void Warning(EValidatorModule module, EValidatorSeverity severity, EValidatorFlags flags, string file, string format, params object[] args);
+    // Added for Puppet.cpp literal port
+    IEntitySystem GetIEntitySystem() { return gEnv.pEntitySystem; }
+    CryAISystem.CPNoise3 GetNoiseGen() { return new CryAISystem.CPNoise3(); }
 }
 
 // gEnv is a free-standing global in the C++ engine. We host it on a top-level
@@ -43,9 +50,13 @@ public static class gEnv
     public static IRenderer pRenderer => Instance.pRenderer;
     public static IPhysicalWorld pPhysicalWorld => Instance.pPhysicalWorld;
     public static IAISystemForwardDecl pAISystem => Instance.pAISystem;
+    public static I3DEngine p3DEngine => Instance.p3DEngine;
 
+    public static bool bMultiplayer => Instance.bMultiplayer;
     public static bool IsEditor() => Instance.IsEditor();
+    public static bool IsEditing() => Instance.IsEditing();
     public static bool IsDedicated() => Instance.IsDedicated();
+    public static IScriptSystem pScriptSystem => Instance.pScriptSystem;
 }
 
 public static class SystemGlobals
@@ -58,4 +69,24 @@ public static class SystemGlobals
 public interface IAISystemForwardDecl
 {
     void SendSignal(SIGNALFILTER filter, int nFollowUp, string szText, IAIObject pSenderObject, IAISignalExtraData pData, uint crcCode);
+    // Added for AIActor.cpp literal port (Phase 2)
+    float GetGlobalVisualScale(CryAISystem.CAIActor actor);
+    float GetGlobalAudioScale(CryAISystem.CAIActor actor);
+    CryAISystem.IVisionMap GetVisionMap();
+    CryAISystem.IAISignalExtraData CreateSignalExtraData();
+    void FreeSignalExtraData(CryAISystem.AISignalExtraData data);
+    // Added for Puppet.cpp literal port
+    CryAISystem.CAIActionManager GetAIActionManager() { return CryAISystem.gAIEnv.pAIActionManager; }
+    // Added for MoveOp.cpp literal port (Phase 4)
+    CryAISystem.IMovementSystem GetMovementSystem() { return CryAISystem.gAIEnv.pMovementSystem; }
+    uint GetAgentDebugTarget() { return 0; }
+}
+
+// I3DEngine — subset of I3DEngine.h used by AIVehicle.cpp + Shape.cpp
+public interface I3DEngine
+{
+    float GetTerrainElevation(float x, float y);
+    float GetWaterLevel(Vec3 pt);
+    /// Overload returning ocean level (no args). C++ signature: GetWaterLevel()
+    float GetWaterLevel();
 }

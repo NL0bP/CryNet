@@ -61,7 +61,8 @@ public enum EAITargetZone
 }
 
 // IAgent.h:409-415
-public enum EAIWeaponAccessories
+[System.Flags]
+public enum EAIWeaponAccessories : uint
 {
     AIWEPA_NONE = 0,
     AIWEPA_LASER = 0x0001,
@@ -117,6 +118,17 @@ public enum EAITargetStuntReaction
     AITSR_SEE_STUNT_ACTION,
     AITSR_SEE_CLOAKED,
     AITSR_LAST
+}
+
+// IAgent.h:257-265
+public enum ELookStyle
+{
+    LOOKSTYLE_DEFAULT = 0,
+    LOOKSTYLE_HARD,
+    LOOKSTYLE_HARD_NOLOWER,
+    LOOKSTYLE_SOFT,
+    LOOKSTYLE_SOFT_NOLOWER,
+    LOOKSTYLE_COUNT
 }
 
 // IAgent.h:1380-1392

@@ -27,6 +27,16 @@ public abstract class CPipeUserAdapter : IPipeUser
     public abstract uint8 GetFactionID();
     public abstract CPuppet CastToCPuppet();
     public abstract ushort GetAIType();
+    public abstract bool IsEnabled();
+    public abstract CryAISystem.CryCommon.IEntity GetEntity();
+    public abstract uint GetAIObjectID();
+    public abstract CAIActor CastToCAIActor();
+    public abstract uint GetEntityID();
+    public abstract CAIPlayer CastToCAIPlayer();
+    public abstract bool IsHostile(IAIObject pOther, bool bUsingAIIgnorePlayer = true);
+    public abstract CryAISystem.CryCommon.Matrix34 GetWorldTM();
+    public abstract CAIVehicle CastToCAIVehicle();
+    public abstract Vec3 GetPos();
 
     private bool SelectPipe(int id, string name, IAIObject pArgument = null, int goalPipeId = 0, bool resetAlways = false, GoalParams node = null)
     { return SelectPipe(id, name, Adapters.GetWeakRefSafe(pArgument), goalPipeId, resetAlways, node); }

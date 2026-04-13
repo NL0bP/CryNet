@@ -135,4 +135,8 @@ public struct CTimeValue
 }
 
 // Forward declaration shim — full literal port of CrySizer.h is deferred.
-public interface ICrySizer { }
+public interface ICrySizer
+{
+    void AddObject(object obj, nuint size) { }
+    void AddContainer<T>(System.Collections.Generic.ICollection<T> container) { }
+}

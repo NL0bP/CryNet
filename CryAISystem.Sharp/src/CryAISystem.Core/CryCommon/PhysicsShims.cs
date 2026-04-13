@@ -24,6 +24,13 @@ public class pe_status_living : CryPhysics.Params.PhysicsStatusBase
     public bool isSquashed;
 }
 
+// pe_params_part — port of physinterface.h (shell for AIActor.cpp)
+public class pe_params_part : CryPhysics.Params.PhysicsParamsBase
+{
+    public override int TypeId => 4; // pe_params_part type ID
+    public int ipart;
+}
+
 // pe_status_dynamics — port of physinterface.h
 public class pe_status_dynamics : CryPhysics.Params.PhysicsStatusBase
 {

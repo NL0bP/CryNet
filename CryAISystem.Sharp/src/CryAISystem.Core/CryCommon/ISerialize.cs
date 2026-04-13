@@ -67,4 +67,12 @@ public struct TSerialize
         Value(name, ref iv);
         v = (T)System.Enum.ToObject(typeof(T), iv);
     }
+
+    // EnumValue — 2-arg overload (no range check)
+    public void EnumValue<T>(string name, ref T v) where T : struct, System.Enum
+    {
+        int iv = System.Convert.ToInt32(v);
+        Value(name, ref iv);
+        v = (T)System.Enum.ToObject(typeof(T), iv);
+    }
 }

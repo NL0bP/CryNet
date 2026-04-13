@@ -410,7 +410,7 @@ public class PostureManager
 }
 
 // Forward decls / shells
-public struct CoverID { }
+public struct CoverID { public uint id; public bool IsValid() { return id != 0; } public CoverID(uint id = 0) { this.id = id; } }
 // Literal port of dev/Code/CryEngine/CryCommon/IAgent.h:204-219 enum EStance
 public enum EStance
 {

@@ -171,6 +171,102 @@ public struct PhysMatrix33
 
     // Patches added by CryAISystem.Sharp port — literal C++ Matrix33 method names from Cry_Math.h.
 
+    /// <summary>Port of `Matrix33::GetColumn0()` — first column (x-axis).</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public PhysVector3 GetColumn0() => new(M00, M10, M20);
+
+    /// <summary>Port of `Matrix33::GetColumn1()` — second column (y-axis).</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public PhysVector3 GetColumn1() => new(M01, M11, M21);
+
+    /// <summary>Port of `Matrix33::GetColumn2()` — third column (z-axis).</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public PhysVector3 GetColumn2() => new(M02, M12, M22);
+
+    /// <summary>Port of `Matrix33::SetIdentity()` — set this to identity.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void SetIdentity() => this = Identity;
+
+    /// <summary>
+    /// Port of `Matrix33::SetRotationVDir(Vec3 vdir, float roll)`.
+    /// Creates a rotation matrix that maps (0,1,0) to vdir.
+    /// </summary>
+    public void SetRotationVDir(in PhysVector3 vdir, float roll = 0f)
+    {
+        // CryEngine Cry_Matrix33.h SetRotationVDir implementation
+        float l = MathF.Sqrt(vdir.X * vdir.X + vdir.Y * vdir.Y);
+        if (l > 1e-6f)
+        {
+            float xl = -vdir.X / l;
+            float yl = vdir.Y / l;
+
+            M00 = yl;                M01 = vdir.X;  M02 = xl * vdir.Z;
+            M10 = xl;                M11 = vdir.Y;  M12 = -yl * vdir.Z;
+            M20 = 0f;                M21 = vdir.Z;  M22 = l;
+        }
+        else
+        {
+            // vdir is nearly vertical
+            float s = vdir.Z < 0f ? -1f : 1f;
+            M00 = 1f; M01 = 0f; M02 = 0f;
+            M10 = 0f; M11 = 0f; M12 = -s;
+            M20 = 0f; M21 = s;  M22 = 0f;
+        }
+
+        if (MathF.Abs(roll) > 1e-6f)
+        {
+            float cr = MathF.Cos(roll);
+            float sr = MathF.Sin(roll);
+            // Rotate around vdir (column1) by roll
+            float t00 = M00 * cr + M02 * sr;
+            float t10 = M10 * cr + M12 * sr;
+            float t20 = M20 * cr + M22 * sr;
+            M02 = -M00 * sr + M02 * cr;
+            M12 = -M10 * sr + M12 * cr;
+            M22 = -M20 * sr + M22 * cr;
+            M00 = t00; M10 = t10; M20 = t20;
+        }
+    }
+
+    /// <summary>
+    /// Port of `Matrix33::CreateRotationVDir(Vec3 vdir, float roll)`.
+    /// </summary>
+    public static PhysMatrix33 CreateRotationVDir(in PhysVector3 vdir, float roll = 0f)
+    {
+        var m = new PhysMatrix33();
+        m.SetRotationVDir(vdir, roll);
+        return m;
+    }
+
+    /// <summary>Port of `Matrix33::CreateRotationZ(float rad)` — rotation around Z axis.</summary>
+    public static PhysMatrix33 CreateRotationZ(float rad)
+    {
+        float c = MathF.Cos(rad);
+        float s = MathF.Sin(rad);
+        return new PhysMatrix33(
+            c, -s, 0,
+            s,  c, 0,
+            0,  0, 1
+        );
+    }
+
+    /// <summary>Port of `Matrix33(const Matrix34&)` — construct from the 3x3 rotation part of a Matrix34.</summary>
+    public PhysMatrix33(in CryPhysics.Math.PhysVector3 col0, in CryPhysics.Math.PhysVector3 col1, in CryPhysics.Math.PhysVector3 col2, bool columnMajor)
+    {
+        if (columnMajor)
+        {
+            M00 = col0.X; M01 = col1.X; M02 = col2.X;
+            M10 = col0.Y; M11 = col1.Y; M12 = col2.Y;
+            M20 = col0.Z; M21 = col1.Z; M22 = col2.Z;
+        }
+        else
+        {
+            M00 = col0.X; M01 = col0.Y; M02 = col0.Z;
+            M10 = col1.X; M11 = col1.Y; M12 = col1.Z;
+            M20 = col2.X; M21 = col2.Y; M22 = col2.Z;
+        }
+    }
+
     /// <summary>Port of `Matrix33::Transpose()` — in-place transpose.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Transpose()

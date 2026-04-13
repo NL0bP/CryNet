@@ -15,3 +15,5 @@ global using Matrix33 = CryPhysics.Math.PhysMatrix33;
 global using Quat = CryPhysics.Math.PhysQuaternion;
 global using IPhysicalEntity = CryPhysics.Entities.IPhysicalEntity;
 global using pe_status_pos = CryPhysics.Params.StatusPos;
+global using pe_params_bbox = CryPhysics.Params.ParamsBBox;
+global using pe_params_flags = CryPhysics.Params.ParamsFlags;

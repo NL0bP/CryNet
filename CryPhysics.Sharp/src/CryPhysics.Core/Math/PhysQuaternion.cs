@@ -182,6 +182,65 @@ public struct PhysQuaternion : IEquatable<PhysQuaternion>
         return new PhysQuaternion(MathF.Cos(half), axis.X * s, axis.Y * s, axis.Z * s);
     }
 
+    /// <summary>Port of Quat::GetInverted — returns conjugate (same as Conjugate for unit quaternions).</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public PhysQuaternion GetInverted() => Conjugate();
+
+    /// <summary>Port of Quat::SetRotationVDir — build quaternion from forward direction vector.</summary>
+    public void SetRotationVDir(PhysVector3 vDir)
+    {
+        // Port of CryEngine Quat::SetRotationVDir (Cry_Quat.h)
+        float yz = MathF.Sqrt(vDir.Y * vDir.Y + vDir.Z * vDir.Z);
+        float xAngle = MathF.Atan2(-vDir.X, yz);
+        float zAngle = (yz > 1e-9f) ? MathF.Atan2(vDir.Y, vDir.Z) : 0f;
+        var qx = FromAxisAngle(new PhysVector3(1, 0, 0), xAngle);
+        var qz = FromAxisAngle(new PhysVector3(0, 0, 1), zAngle);
+        var result = qz * qx;
+        W = result.W; X = result.X; Y = result.Y; Z = result.Z;
+    }
+
+    /// <summary>Port of Quat::SetSlerp — spherical interpolation between p and q by t.</summary>
+    public void SetSlerp(PhysQuaternion p, PhysQuaternion tgt, float t)
+    {
+        var result = Slerp(p, tgt, t);
+        W = result.W; X = result.X; Y = result.Y; Z = result.Z;
+    }
+
+    /// <summary>Spherical interpolation utility.</summary>
+    public static PhysQuaternion Slerp(PhysQuaternion a, PhysQuaternion b, float t)
+    {
+        float cosOmega = a.W * b.W + a.X * b.X + a.Y * b.Y + a.Z * b.Z;
+        if (cosOmega < 0f)
+        {
+            b = new PhysQuaternion(-b.W, -b.X, -b.Y, -b.Z);
+            cosOmega = -cosOmega;
+        }
+        float k0, k1;
+        if (cosOmega > 0.9999f)
+        {
+            k0 = 1f - t;
+            k1 = t;
+        }
+        else
+        {
+            float omega = MathF.Acos(cosOmega);
+            float sinOmega = MathF.Sin(omega);
+            k0 = MathF.Sin((1f - t) * omega) / sinOmega;
+            k1 = MathF.Sin(t * omega) / sinOmega;
+        }
+        return new PhysQuaternion(k0 * a.W + k1 * b.W, k0 * a.X + k1 * b.X, k0 * a.Y + k1 * b.Y, k0 * a.Z + k1 * b.Z);
+    }
+
+    /// <summary>Rotate a vector by this quaternion (operator* in C++: Quat * Vec3).</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static PhysVector3 operator *(in PhysQuaternion q, in PhysVector3 v)
+    {
+        // Same as q.Rotate(v)
+        var qv = new PhysVector3(q.X, q.Y, q.Z);
+        var t = 2f * (qv ^ v);
+        return v + q.W * t + (qv ^ t);
+    }
+
     public bool Equals(PhysQuaternion other) => W == other.W && X == other.X && Y == other.Y && Z == other.Z;
     public override bool Equals(object? obj) => obj is PhysQuaternion q && Equals(q);
     public override int GetHashCode() => HashCode.Combine(W, X, Y, Z);

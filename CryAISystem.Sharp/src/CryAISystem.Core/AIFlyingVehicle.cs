@@ -252,7 +252,7 @@ public class CAIFlyingVehicle : CPuppet
 // (ObservableParams + PhysSkipList live in AIObject.cs.)
 public class ObserverParams
 {
-    public const int MaxSkipListSize = 8;
+    public const int MaxSkipListSize = 32;
     public uint entityId;
     public uint32 factionsToObserveMask;
     public uint8 faction;
@@ -260,11 +260,15 @@ public class ObserverParams
     public uint32 typeMask;
     public Vec3 eyePosition;
     public Vec3 eyeDirection;
-    public float sightRange;
-    public float fovCos;
+    public float sightRange = 50.0f;
+    public float fovCos = -1.0f;
     public System.Action<VisionID, ObserverParams, VisionID, ObservableParams, bool> callback;
     public IPhysicalEntity[] skipList = new IPhysicalEntity[MaxSkipListSize];
     public int skipListSize;
+    // Added for VisionMap.cpp literal port
+    public CTimeValue updatePeriod = new CTimeValue(0.3f);
+    public uint32 raycastFlags;
+    public uint userData;
 }
 
 public enum SIGNALFILTER

@@ -154,5 +154,36 @@ public class ActorLookUp
 // Forward decl for IAIActorProxy (CryCommon port pending)
 public interface IAIActorProxy
 {
-    IPhysicalEntity GetPhysics();
+    IPhysicalEntity GetPhysics(bool bWantCharacterPhysics = false);
+    void Reset(EObjectResetType type);
+    bool IsDead();
+    void CheckUpdateStatus();
+    void Update(SOBJECTSTATE state, bool fullUpdate);
+    void Serialize(TSerialize ser);
+    void QueryBodyInfo(SAIBodyInfo bodyInfo);
+    string GetBehaviorSelectionTreeName();
+    string GetNavigationTypeName();
+    void SetBehaviour(string name);
+    uint GetLinkedVehicleEntityId();
+    uint GetLinkedDriverEntityId();
+    float GetActorHealth();
+    float GetActorArmor();
+    int GetActorMaxHealth();
+    float GetActorMaxArmor();
+    bool QueryBodyInfo(SAIBodyInfoQuery query, SAIBodyInfo bodyInfo);
+    void EnableWeaponListener(uint weaponId, bool signalOnShoot);
+    bool GetSecWeaponDescriptor(AIWeaponDescriptor desc, ERequestedGrenadeType type);
+    void GetSecWeapon(ERequestedGrenadeType type, object reserved, out uint weaponId);
+    AIWeaponDescriptor GetCurrentWeaponDescriptor();
+    void GetCurrentWeapon(out uint weaponId);
+    // GetAndResetShotBulletCount — used by burst fire
+    int GetAndResetShotBulletCount();
+    // Added for AIPlayer.cpp literal port
+    IEntity GetGrabbedEntity();
+    void QueryWeaponInfo(SAIWeaponInfo wi);
+    // Added for Puppet.cpp literal port
+    bool GetActorIsFallen() { return false; }
+    int GetAlertnessState() { return 0; }
+    void ResetAGInput() { }
+    void SetAGInput(string name, string value, bool forceUpdate = false) { }
 }
