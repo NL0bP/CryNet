@@ -74,18 +74,30 @@ c:/Users/Taka/Downloads/lumberyard_1-0_fr_432777/
 
 ---
 
-## 2. Estado atual
+## 2. Current state (updated 2026-04-13)
 
 | Item | Status |
 |---|---|
-| Mapeamento completo dos 397 arquivos / 91k LOC | ✅ (este documento) |
-| Mapeamento de deps CryCommon (172 headers, ~52k LOC) | ✅ (este documento) |
+| Full mapping of 179 .cpp files / 91k LOC | ✅ (this document) |
+| CryCommon deps mapping (172 headers, ~52k LOC) | ✅ (this document) |
 | Scaffolding (sln + csproj + GlobalUsings + tracking files) | ✅ |
-| Port literal de IFactionMap.cs (CryCommon header) | ✅ exemplo de referência |
-| Port literal de FactionMap.cs (404L C++) | ✅ exemplo de referência (deferido — aguarda ISystem/IXml/ISerialize/ICryPak/CryString) |
-| Reconciliação CryPhysics.Sharp | aguardando 1º arquivo que use Vec3/Matrix/Quat |
-| Fase 1 demais arquivos | pendente |
-| Fases 2-13 | pendente |
+| CryPhysics.Sharp reconciliation | ✅ patches applied (PhysVector3, PhysMatrix33, PhysQuaternion) |
+| Phase 0 — Scaffolding | ✅ done |
+| Phase 1 — Leaves (~3,000 LOC) | ✅ done |
+| Phase 2 — Actor hierarchy (~25,000 LOC) | ✅ done — full .h+.cpp literal ports (AIActor, AIPlayer, AIVehicle, PipeUser, Puppet) |
+| Phase 3 — Navigation (~21,000 LOC) | ✅ done — MNM navmesh, TileGenerator, Voxelizer, MeshGrid A*, NavigationSystem, pathfinding |
+| Phase 4 — Movement + CollisionAvoidance (~4,700 LOC) | ✅ done — MovementSystem + 10 blocks + ORCA |
+| Phase 5 — Perception (~5,000 LOC) | 🟡 partial — VisionMap ray-cast pipeline done |
+| Phase 6 — Cover + TPS + TargetSelection (~16,400 LOC) | ❌ not started |
+| Phase 7 — Goals & Pipes (~10,400 LOC) | 🟡 partial — GoalOpTrace + GoalOpStick + AIPIDController |
+| Phase 8 — BehaviorTree + SelectionTree (~12,000 LOC) | ❌ not started |
+| Phase 9 — Group dynamics (~5,600 LOC) | ❌ not started |
+| Phase 10 — Communication + Sequence + Mannequin (~7,000 LOC) | ❌ not started |
+| Phase 11 — CAISystem coordinator (~15,000 LOC) | 🟡 mostly done — CAISystem + UpdateLoop + DebugDrawHelpers + MemStats + Environment |
+| Phase 12 — GameSpecific + FlowNodes (~7,500 LOC) | ❌ not started |
+| Phase 13 — ScriptBind_AI (~12,000 LOC) | ❌ not started |
+| **Total ported** | **~92,000 lines C# across 113 files** |
+| **Build** | **0 errors, 96 warnings** |
 
 ---
 

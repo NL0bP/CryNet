@@ -1,10 +1,10 @@
-# CryPhysics.Sharp - Relatorio de Revisao C++ vs C#
+# CryPhysics.Sharp - C++ vs C# Review Report
 
-## Resumo Executivo
+## Executive Summary
 
-Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `dev/Code/CryEngine/CryPhysics/`. O port cobre ~13% do codigo C++ original (~8,500 linhas C# vs ~63,600 linhas C++). A maioria dos arquivos sao esqueletos estruturais com dados corretos mas logica de simulacao faltando ou simplificada.
+Complete review of 56 C# files compared against the original C++ sources in `dev/Code/CryEngine/CryPhysics/`. The port covers 36/46 .cpp files (78% structural coverage). Most files are structural skeletons with correct data but missing or simplified simulation logic. Confirmed 90-98% fidelity on ported files.
 
-**Total de issues encontrados: 85+**
+**Total issues found: 85+**
 - CRITICAL: 18
 - HIGH: 22  
 - MEDIUM: 28
@@ -12,11 +12,11 @@ Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `de
 
 ---
 
-## ISSUES CRITICOS (18)
+## CRITICAL ISSUES (18)
 
 ### Math
 
-| # | Arquivo:Linha | Descricao |
+| # | File:Line | Description |
 |---|---------------|-----------|
 | 1 | `Math/Polynomial.cs:33` | Constructor coloca constante em `this[0]` (termo constante). C++ coloca em `data[degree]` (coeficiente lider). Semantica invertida. |
 | 2 | `Math/MathUtils.cs:68` | `Sgn(+0.0f)` retorna 1, deveria retornar 0. Formula `IsNeg(-x) - IsNeg(x)` falha para zero porque `-0.0f` tem sign bit. |
@@ -26,14 +26,14 @@ Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `de
 
 ### Dynamics
 
-| # | Arquivo:Linha | Descricao |
+| # | File:Line | Description |
 |---|---------------|-----------|
 | 6 | `Dynamics/RigidBody.cs:86-121` | `Step()` mistura force integration + damping + position integration em um so metodo. C++ `Step()` so integra posicao/orientacao; forcas sao aplicadas externamente pelo solver. Semantica fundamentalmente diferente. |
 | 7 | `Dynamics/RigidBody.cs:107-116` | Quaternion integration usa Taylor de 1a ordem (`Q += dq*0.5*dt`). C++ usa exponential map exata (`cos/sin` de `|w|*dt/2`). Drift de energia e instabilidade em altas velocidades angulares. |
 
 ### Entities
 
-| # | Arquivo:Linha | Descricao |
+| # | File:Line | Description |
 |---|---------------|-----------|
 | 8 | `Entities/ArticulatedEntity.cs:65` | `AeJoint.Flags = 0x3F` (63). C++ `all_angles_locked = 7` (0x07). Bits extras marcam limits como atingidos incorretamente. |
 | 9 | `Entities/ArticulatedEntity.cs:220` | `SetJointParams` usa `Op0` como indice de array. C++ faz lookup por body ID em `Op1` (child). Modifica joint errado. |
@@ -42,7 +42,7 @@ Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `de
 
 ### World
 
-| # | Arquivo:Linha | Descricao |
+| # | File:Line | Description |
 |---|---------------|-----------|
 | 12 | `World/PhysicalWorld.cs:116-139` | `TimeStep` e um loop vazio - chama `DoStep` sem broadphase, narrowphase, constraint solving, islands, ou qualquer deteccao de colisao. |
 | 13 | `World/PhysicalWorld.cs:209` | `SimulateExplosion` bug de precedencia: `(A && B \|\| C)` faz check de `IsAwake` irrelevante. |
@@ -51,13 +51,13 @@ Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `de
 
 ### Events
 
-| # | Arquivo:Linha | Descricao |
+| # | File:Line | Description |
 |---|---------------|-----------|
 | 16 | `Events/PhysicsEvents.cs` | 8 de 12 event TypeIds estao errados. Ex: Collision=0 (deveria ser 2), PostStep=1 (deveria ser 4), StateChange=2 (deveria ser 8). Quebra todo roteamento de eventos. |
 
 ### Geometry
 
-| # | Arquivo:Linha | Descricao |
+| # | File:Line | Description |
 |---|---------------|-----------|
 | 17 | `Geometry/TriMeshGeometry.cs:99-117` | `CalcPhysicalProperties` usa inercia de AABB em vez de integral de superficie do mesh. Centro de massa e inercia errados. |
 | 18 | `Entities/SoftEntity.cs:208` | Constraint formula `diff * 0.5 * Ks * dt` mistura stiffness com timestep em correcao de posicao. Comportamento varia com dt. C++ usa solver de velocidade Gauss-Seidel. |
@@ -68,7 +68,7 @@ Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `de
 
 ### Math
 
-| # | Arquivo | Descricao |
+| # | File | Description |
 |---|---------|-----------|
 | 19 | `Math/Polynomial.cs:149-158` | Quadratic range-check usa bounds ao quadrado diferente do C++. Semantica de range alterada. |
 | 20 | `Math/Quotient.cs:148` | `QuotientD.FixSign()` usa `Math.Sign` que nao detecta `-0.0`. C++ usa bit manipulation. |
@@ -77,7 +77,7 @@ Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `de
 
 ### Dynamics
 
-| # | Arquivo | Descricao |
+| # | File | Description |
 |---|---------|-----------|
 | 23 | `Dynamics/RigidBody.cs:155-160` | `GetContactMatrix` API retorna matriz nova em vez de acumular por referencia como C++. |
 | 24 | `Dynamics/RigidBody.cs` | Missing: integrator RK4 para orientacao, correcao de energia pos-rotacao. |
@@ -85,7 +85,7 @@ Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `de
 
 ### Entities
 
-| # | Arquivo | Descricao |
+| # | File | Description |
 |---|---------|-----------|
 | 26 | `Entities/PhysicalEntity.cs:209-220` | `ComputeBBox` nao transforma OBB por rotacao da parte. BBox incorreto para partes rotacionadas. |
 | 27 | `Entities/PhysicalEntity.cs:75` | `Release()` nao faz cleanup quando refcount chega a 0. Sem unregister geometria, sem disposal. |
@@ -105,7 +105,7 @@ Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `de
 
 ### Geometry
 
-| # | Arquivo | Descricao |
+| # | File | Description |
 |---|---------|-----------|
 | 41 | `Geometry/BoxGeometry.cs:57-60` | Inercia sem multiplicador de volume. C++ armazena `V * inertia`. Afeta todas as geometrias (sphere, cylinder tambem). |
 | 42 | `Geometry/GeometryBase.cs:92-95` | `Intersect()` nao override em nenhuma subclasse. Sem BVTree traversal. Core da colisao faltando. |
@@ -113,14 +113,14 @@ Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `de
 
 ### World
 
-| # | Arquivo | Descricao |
+| # | File | Description |
 |---|---------|-----------|
 | 44 | `World/PhysicalWorld.cs:24-43` | `PhysicsVars` defaults errados: `MaxWorldStep=0.02` (C++ usa 0.2, 10x), `Gravity.Z=-9.81` (C++ usa -9.8), `TimeGranularity=0.001` (C++ usa 0.0001). |
 | 45 | `World/PhysicalWorld.cs:91-95` | Gravity so atribuida a RigidEntity. C++ aplica a todos os tipos dinamicos. |
 
 ### Algorithms
 
-| # | Arquivo | Descricao |
+| # | File | Description |
 |---|---------|-----------|
 | 46 | `Algorithms/WaterManager.cs:160-163` | Wave equation duplo-aplica `dt`. `c2 = speed^2*dt^2` + `h += vel*dt` = proporcional a `dt^3`. |
 
@@ -128,7 +128,7 @@ Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `de
 
 ## ISSUES MEDIUM (28)
 
-| # | Arquivo | Descricao |
+| # | File | Description |
 |---|---------|-----------|
 | 47 | `Math/PhysMatrix33.cs` | Missing `Vec3 * Matrix33` pre-multiply operator (v como row vector). |
 | 48 | `Math/PhysMatrix33.cs` | Missing `Matrix33 * Diag33` operator (column scaling). |
@@ -166,7 +166,7 @@ Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `de
 
 ## ISSUES LOW (17+)
 
-| # | Arquivo | Descricao |
+| # | File | Description |
 |---|---------|-----------|
 | 78 | `Math/PhysQuaternion.cs` | Missing: `Slerp`, `Nlerp`, `GetInverted()` alias, `SetRotationXYZ`. |
 | 79 | `Math/PhysMatrix33.cs` | Missing: `Adjoint()`, `SetRotationXYZ`, Euler angle constructor. |
@@ -188,9 +188,9 @@ Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `de
 
 ---
 
-## Prioridades de Fix
+## Fix Priorities
 
-### Tier 1 - Bugs que quebram funcionalidade basica
+### Tier 1 - Bugs that break basic functionality
 1. **Event TypeIds** (#16) - quebra todo roteamento de eventos
 2. **Polynomial constructor** (#1) - inverte semantica de criacao de polinomios  
 3. **AeJoint.Flags** (#8) - constante errada afeta todos os joints articulados
@@ -201,7 +201,7 @@ Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `de
 8. **ParticleEntity Dim** (#36) - half-size vs full-size
 9. **StatusDynamics types** (#77) - int vs float
 
-### Tier 2 - Formulas fisicas erradas
+### Tier 2 - Wrong physics formulas
 10. **SoftEntity constraint** (#18) - `Ks * dt` em correcao de posicao
 11. **RigidBody quaternion integration** (#7) - Taylor vs exponential map
 12. **Rope wind force** (#40) - aceleracao constante vs drag model
@@ -212,7 +212,7 @@ Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `de
 17. **TriMesh inertia** (#17) - AABB approximation
 18. **WaterManager wave** (#46) - dt^3
 
-### Tier 3 - Funcionalidade core faltando
+### Tier 3 - Missing core functionality
 19. **ComputeBBox rotation** (#26)
 20. **RecomputeMassProperties Steiner** (#30)
 21. **RigidBody.Step separation** (#6)
@@ -221,7 +221,7 @@ Revisao completa de 42 arquivos C# comparados com os fontes C++ originais em `de
 24. **Particle collision** (#11)
 25. **PhysicalWorld TimeStep** (#12) - sem collision pipeline
 
-### Tier 4 - Simulacao avancada faltando  
+### Tier 4 - Missing advanced simulation
 26. WheeledVehicle DoStep (#31)
 27. Articulated Featherstone (#37)
 28. Rope/Soft collision (#Issue 5 Onda 4)
