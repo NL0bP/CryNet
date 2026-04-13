@@ -121,6 +121,8 @@ namespace CryAISystem
         // Added for Puppet.cpp literal port
         public bool lowAmmo;
         public bool outOfAmmo;
+        // Added for CAISystemUpdate.cpp literal port — UpdateExpensiveAccessoryQuota
+        public bool hasLightAccessory;
     }
 
     // Phase 9 — Group dynamics

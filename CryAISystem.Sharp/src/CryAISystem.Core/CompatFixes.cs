@@ -71,10 +71,14 @@ public partial class CNavPath
     public PathPointDescriptor.OffMeshLinkData GetLastPathPointMNNSOData() { return null; /* shell */ }
 }
 
-// CAIHideObject.Set — add 3-arg overload
+// CAIHideObject.Set — add 3-arg overload + debug helpers for CAISystemUpdate.cpp
 public partial class CAIHideObject
 {
     public void Set(SHideSpot hs, Vec3 pos, Vec3 dir) { Set(hs); }
+    // Added for CAISystemUpdate.cpp literal port — UpdateDebugStuff
+    public void HurryUpCoverPathGen() { /* delegates to CAIHideObjectReal — pending Phase 11 */ }
+    public void DebugDraw() { /* debug visualization — delegates to CAIHideObjectReal — pending Phase 11 */ }
+    public void Update(int dummy) { /* 0-arg update variant used by debug — pending Phase 11 */ }
 }
 
 // Fix CPathObstacles.CalculateObstaclesAroundLocation — already added in PipeUser.cs

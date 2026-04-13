@@ -1426,6 +1426,8 @@ public interface IComponentRender
 public interface IRenderNode
 {
     float GetMaxViewDist();
+    // Added for CAISystemUpdate.cpp literal port — IsPuppetOnScreen
+    int GetDrawFrame(int nRecursionLevel = 0) { return 0; }
 }
 
 // CastToCAIPlayerSafe — inline helper from AIPlayer.h lines 166-167

@@ -1078,7 +1078,8 @@ public class CRecordable { }
 public class CFormation
 {
     public const int INVALID_FORMATION_ID = -1;
-    public int GetId() { return INVALID_FORMATION_ID; /* impl pending Phase 9 */ }
+    private int m_id = INVALID_FORMATION_ID;
+    public int GetId() { return m_id; /* impl pending Phase 9 */ }
     public void SetUpdateSight(float range, float minTime, float maxTime) { /* impl pending */ }
     public void Update() { /* impl pending Phase 9 */ }
     // Added for MoveOp.cpp literal port (Phase 4)
@@ -1086,7 +1087,15 @@ public class CFormation
     public CAIObject GetOwner() { return null; /* impl pending Phase 9 */ }
     public int GetPointIndex(CWeakRef<CAIObject> weakRef) { return -1; /* impl pending Phase 9 */ }
     public void GetPointOffset(int pointIndex, ref Vec3 offset) { /* impl pending Phase 9 */ }
+    // Added Phase 11 — needed by CAISystem.CreateFormation
+    public void Create(FormationDescriptor desc, CWeakRef<CAIObject> refOwner, Vec3 targetPos) { /* impl pending Phase 9 */ }
+    public void Create(CWeakRef<CAIObject> refOwner, Vec3 targetPos) { /* impl pending Phase 9 */ }
+    public void FreeFormationPoint(CWeakRef<CAIObject> refOwner) { /* impl pending Phase 9 */ }
+    public CFormationPoint GetFormationPoint(CWeakRef<CAIObject> refObj) { return null; /* impl pending Phase 9 */ }
+    public int GetSize() { return 0; /* impl pending Phase 9 */ }
+    public CAIObject GetPointOwner(int idx) { return null; /* impl pending Phase 9 */ }
 }
+public class CFormationPoint { }
 
 public struct VisionID
 {
