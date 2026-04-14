@@ -1,61 +1,81 @@
 # CryPhysics.Sharp — Port Status
 
-Tracker of REVIEW_REPORT.md issues. Legend: ⬜ pending · 🟡 in-progress · ✅ done · 🔴 deferred.
+Tracker of REVIEW_REPORT.md issues. Legend: ⬜ pending · 🟡 in-progress · ✅ done · 🔴 deferred · ❓ stale (REVIEW_REPORT entry no longer matches current code).
 
-**Build**: 0 errors (2026-04-14). **Last commit**: `2420b9d` (WIP #42).
+**Build**: 0 errors (2026-04-14). **Last commit**: `be7d241` (tracking docs).
 
 ---
 
-## Tier 1 — Trivial bugs (0/9)
+## Audit result (2026-04-14)
 
-| ID | File:line | Issue | Status |
-|----|-----------|-------|--------|
-| #1  | Math/Polynomial.cs:33 | Constructor coloca em `this[0]`, C++ em `data[degree]` | ⬜ |
-| #2  | Math/MathUtils.cs:68 | `Sgn(+0.0f)` retorna 1, deve retornar 0 | ⬜ |
-| #8  | Entities/ArticulatedEntity.cs:65 | `AeJoint.Flags=0x3F`, C++ usa `0x07` | ⬜ |
-| #9  | Entities/ArticulatedEntity.cs:220 | `SetJointParams` usa `Op0` index; C++ faz lookup por body ID em `Op1` | ⬜ |
-| #13 | World/PhysicalWorld.cs:209 | `SimulateExplosion` precedencia `&& ∥` | ⬜ |
-| #16 | Events/PhysicsEvents.cs | 8 de 12 event TypeIds errados | ⬜ |
-| #36 | Entities/ParticleEntity.cs:91 | `Dim=Size`, C++ usa `size*0.5f` | ⬜ |
-| #44 | World/PhysicalWorld.cs:24-43 | PhysicsVars: MaxWorldStep/Gravity/TimeGranularity errados | ⬜ |
-| #77 | Params/PhysicsParams.cs:298-299 | SubmergedFraction + TimeIdle sao `int`, devem ser `float` | ⬜ |
+REVIEW_REPORT.md was written against an older snapshot. Verified against current code:
+**most Tier 1 + several Tier 2/3 issues are already fixed.** Below is the actual state.
 
-## Tier 2 — Wrong physics formulas (0/9)
+### Tier 1 — Trivial bugs (9/9 ALREADY FIXED ❓)
 
-| ID | File:line | Issue | Status |
-|----|-----------|-------|--------|
-| #7  | Dynamics/RigidBody.cs:107-116 | Quaternion Taylor 1a ordem vs exponential map | ⬜ |
-| #17 | Geometry/TriMeshGeometry.cs:99-117 | CalcPhysicalProperties usa AABB inercia | ⬜ |
-| #18 | Entities/SoftEntity.cs:208 | `diff*0.5*Ks*dt` mistura stiffness+timestep | ⬜ |
-| #32 | Entities/LivingEntity.cs:131-134 | Air control formula simplificada | ⬜ |
-| #34 | Entities/LivingEntity.cs:41-42 | Slope angles graus, nao convertidos, defaults errados | ⬜ |
-| #35 | Entities/ParticleEntity.cs:189-194 | Drag formula inventada | ⬜ |
-| #40 | Entities/RopeEntity.cs:210 | Wind como aceleracao constante, nao drag | ⬜ |
-| #41 | Geometry/BoxGeometry.cs:57-60 | Inercia sem multiplicador de volume | ⬜ |
-| #46 | Algorithms/WaterManager.cs:160-163 | Wave eq aplica `dt` duas vezes | ⬜ |
+| ID | File:line | Original issue | Current state | Status |
+|----|-----------|----------------|---------------|--------|
+| #1  | Math/Polynomial.cs:34 | Constructor coloca em `[0]` | `this[degree] = leadingCoeff` | ❓ already correct |
+| #2  | Math/MathUtils.cs:66-71 | `Sgn(+0.0f)=1` | Bit-conversion port `(i>>31)+((i-1)>>31)+1` matches C++ | ❓ already correct |
+| #8  | Entities/ArticulatedEntity.cs:19 | `Flags=0x3F` | `JointFlags.AllAnglesLocked = 7` matches C++ `all_angles_locked=7` | ❓ already correct |
+| #9  | Entities/ArticulatedEntity.cs:279-289 | `Op0` index lookup | Faz lookup por `IdBody == childBodyId` (matches C++ `m_joints[i].idbody!=params->idbody`) | ❓ already correct |
+| #13 | World/PhysicalWorld.cs:492 | `&&\|\|` precedence + IsAwake | Codigo nao tem o `IsAwake&&\|\|` flagged; falloff linear ainda existe (tracked as Tier 2 #14) | ❓ literal bug fixed |
+| #16 | Events/PhysicsEvents.cs | 8 TypeIds errados | Todos com TypeId correto + comentario `// C++ EventPhysX id = N` | ❓ already correct |
+| #36 | Entities/ParticleEntity.cs:105 | `Dim=Size` | `Dim = pp.Size.Value * 0.5f` matches C++ `m_dim = size*0.5f` | ❓ already correct |
+| #44 | World/PhysicalWorld.cs:42-46 | PhysicsVars defaults | `Gravity.Z=-9.8`, `MaxWorldStep=0.2`, `TimeGranularity=0.0001` correct | ❓ already correct |
+| #77 | Params/PhysicsParams.cs:317-318 | int vs float | `public float SubmergedFraction`, `public float TimeIdle` | ❓ already correct |
 
-## Tier 3 — Missing core (0/7 + 1 WIP)
+### Tier 2 — Wrong physics formulas (audit)
 
-| ID | File | Issue | Status |
-|----|------|-------|--------|
-| #6  | Dynamics/RigidBody.cs:86-121 | Step separacao forca/posicao | ⬜ |
-| #10 | Entities/LivingEntity.cs:120-152 | Ground detection | ⬜ |
-| #11 | Entities/ParticleEntity.cs:168-230 | Collision raycast+bounce | ⬜ |
-| #12 | World/PhysicalWorld.cs:116-139 | TimeStep pipeline completo | ⬜ |
-| #26 | Entities/PhysicalEntity.cs:209-220 | ComputeBBox transform OBB | ⬜ |
-| #30 | Entities/RigidEntity.cs:198-205 | RecomputeMassProperties Steiner | ⬜ |
-| #42 | Geometry/GeometryBase.cs:92-95 | BVTree-driven Intersect | 🟡 WIP |
+| ID | File:line | Status |
+|----|-----------|--------|
+| #7  | Dynamics/RigidBody.cs:191-233 | ❓ Already correct — Step() uses RK4 + WDt exp map + energy correction, separated from forces |
+| #17 | Geometry/TriMeshGeometry.cs | ⬜ Needs verification |
+| #18 | Entities/SoftEntity.cs | ⬜ Needs verification (DoStep at :212 uses different model than reported) |
+| #32 | Entities/LivingEntity.cs | ⬜ Needs verification |
+| #34 | Entities/LivingEntity.cs:97-100 | ❓ Already correct — slopes stored as cosines `MathF.Cos(MathF.PI*0.2f)` for 36deg matches C++ |
+| #35 | Entities/ParticleEntity.cs | ⬜ Needs verification |
+| #40 | Entities/RopeEntity.cs | ⬜ Needs verification |
+| #41 | Geometry/BoxGeometry.cs:50-63 | ❓ Already correct — `(sy2+sz2)/12f * v` has volume multiplier |
+| #46 | Algorithms/WaterManager.cs:155-163 | ⬜ Needs verification — c2 definition not yet checked |
 
-## Tier 4 — Advanced (0/5)
+### Tier 3 — Missing core (audit)
 
-| ID | Area | Issue | Status |
-|----|------|-------|--------|
-| #31 | WheeledVehicleEntity | DoStep suspension/tires/engine | ⬜ |
-| #37 | ArticulatedEntity | Featherstone solver | ⬜ |
-| —   | RopeEntity/SoftEntity | Collision + subdivision | ⬜ |
-| —   | Contact solver | PGS completo | ⬜ |
-| —   | World | Spatial grid + ray world | ⬜ |
+| ID | File | Status |
+|----|------|--------|
+| #6  | Dynamics/RigidBody.cs | ❓ Already done (see #7 audit) |
+| #10 | Entities/LivingEntity.cs | ⬜ Needs verification — file is 600+ LOC, may already have ground detection |
+| #11 | Entities/ParticleEntity.cs | ⬜ Needs verification |
+| #12 | World/PhysicalWorld.cs | ⬜ Needs verification — TimeStep pipeline |
+| #26 | Entities/PhysicalEntity.cs | ⬜ ComputeBBox transform OBB |
+| #30 | Entities/RigidEntity.cs | ⬜ RecomputeMassProperties Steiner — but RigidBody.Add already does parallel-axis (line 113-114), may apply to entity too |
+| #42 | Geometry/GeometryBase.cs | 🟡 WIP commit `2420b9d` — BVTree-driven Intersect scaffold |
 
-## HIGH/MEDIUM/LOW remaining
+### Tier 4 — Advanced
 
-Issues #3-5, #14-15, #19-25, #27-29, #33, #38-39, #43, #45, #47-94: listed in REVIEW_REPORT.md, tracked individually as each tier completes.
+Same status as before — not yet audited.
+
+---
+
+## REAL pending work (high confidence)
+
+These are guaranteed real work because they are entire missing C++ files (per README.md):
+
+| C++ file | LOC | Notes |
+|----------|-----|-------|
+| `boolean2d.cpp` | ~800 | 2D boolean ops on polygons |
+| `boolean3d.cpp` | ~1200 | 3D boolean ops on meshes |
+| `capsulegeom.cpp` | ~400 | Capsule geometry |
+| `physicalplaceholder.cpp` | ~300 | Lightweight placeholder entity |
+| `rwi.cpp` | ~600 | Ray world intersection helpers |
+
+Plus issue #42 WIP (BVTree-driven `CGeometry::Intersect`).
+
+---
+
+## Next steps (suggested order)
+
+1. **Re-audit Tier 2/3 ❓ entries** — verify against current code, mark stale or pending.
+2. **Finish issue #42** — implement `CGeometry::Intersect` BVTree traversal literally from `geometry.cpp`.
+3. **Port the 5 missing .cpp files**, smallest first: `physicalplaceholder.cpp` → `capsulegeom.cpp` → `rwi.cpp` → `boolean2d.cpp` → `boolean3d.cpp`.
+4. After missing files done, re-audit remaining REVIEW_REPORT issues against the now-canonical code.
