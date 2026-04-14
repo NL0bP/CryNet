@@ -364,4 +364,91 @@ public class CapsuleGeometry : CylinderGeometry
         base.PrepareForIntersectionTest(pGTest, pCollider, pGTestColl, bKeepPrevContacts);
         pGTest.TypePrim = Capsule.Type;
     }
+
+    /// <summary>
+    /// Unproject a sphere out of this capsule.
+    /// Literal port of CCapsuleGeom::UnprojectSphere from capsulegeom.cpp:159-178.
+    /// </summary>
+    public override int UnprojectSphere(PhysVector3 center, float r, float rsep, ref Primitives.Contact pcontact)
+    {
+        float hh = Cylinder.Axis.Dot(center - Cylinder.Center);
+        if (MathF.Abs(hh) < Cylinder.HalfHeight)
+        {
+            pcontact.Normal = center - Cylinder.Center;
+            pcontact.Normal = pcontact.Normal - Cylinder.Axis * (Cylinder.Axis.Dot(pcontact.Normal));
+            if (pcontact.Normal.LengthSq() > MathUtils.Sqr(Cylinder.Radius + rsep))
+                return 0;
+            float nlen = pcontact.Normal.Length();
+            if (nlen > 0) pcontact.Normal = pcontact.Normal / nlen;
+            pcontact.Pt = Cylinder.Center + Cylinder.Axis * hh + pcontact.Normal * Cylinder.Radius;
+            pcontact.IFeature0 = 0x40;
+            return 1;
+        }
+
+        var ccap = Cylinder.Center + Cylinder.Axis * (Cylinder.HalfHeight * MathUtils.SgnNZ(hh));
+        if ((ccap - center).LengthSq() > MathUtils.Sqr(Cylinder.Radius + rsep))
+            return 0;
+        pcontact.Normal = (center - ccap).Normalized();
+        pcontact.Pt = ccap + pcontact.Normal * Cylinder.Radius;
+        // C++: 0x42 - isneg(hh)  =>  0x42 if hh >= 0, 0x41 if hh < 0
+        pcontact.IFeature0 = (uint)(0x42 - (hh < 0 ? 1 : 0));
+        return 1;
+    }
+
+    /// <summary>
+    /// Calculate medium resistance for a capsule: 12 cylinder side panels + 2 sphere caps.
+    /// Literal port of CCapsuleGeom::CalculateMediumResistance from capsulegeom.cpp:231-269.
+    /// </summary>
+    public override void CalculateMediumResistance(in PhysVector3 planeNormal, in PhysVector3 planeOrigin,
+        in PhysMatrix33 R, in PhysVector3 offset, float scale,
+        in PhysVector3 v, in PhysVector3 w, in PhysVector3 com,
+        out PhysVector3 dPres, out PhysVector3 dLres)
+    {
+        dPres = PhysVector3.Zero;
+        dLres = PhysVector3.Zero;
+
+        float r = Cylinder.Radius * scale;
+        float hh = Cylinder.HalfHeight * scale;
+        var n = R * (-Cylinder.Axis);
+        var rotax = n ^ PhysVector3.UnitZ;
+        float sina = rotax.Length();
+        if (sina > 0.001f)
+            rotax = rotax * (1f / sina);
+        else
+            rotax = PhysVector3.UnitX;
+        var center = R * Cylinder.Center * scale + offset + n * hh;
+
+        Span<PhysVector3> ptside = stackalloc PhysVector3[4];
+        float sqrt3 = MathUtils.Sqrt3;
+        float x1 = 0.965925826f, y1 = 0.258819045f; // 15-degree sin/cos
+        float x0 = r, y0 = 0f;
+        float dx;
+        ptside[0] = new PhysVector3(x0, y0, 0).GetRotated(rotax, n.Z, -sina) + center;
+
+        float planeD = planeOrigin.Dot(planeNormal);
+        for (int i = 0; i < 12; i++)
+        {
+            ptside[1] = ptside[0];
+            dx = x0; x0 = (x0 * sqrt3 - y0) * 0.5f; y0 = (y0 * sqrt3 + dx) * 0.5f;
+            ptside[0] = new PhysVector3(x0, y0, 0).GetRotated(rotax, n.Z, -sina) + center;
+            ptside[2] = ptside[1] - n * (hh * 2f);
+            ptside[3] = ptside[0] - n * (hh * 2f);
+            var faceN = new PhysVector3(x1, y1, 0).GetRotated(rotax, n.Z, -sina);
+            MathUtils.CalcMediumResistance(ptside, 4, faceN, planeNormal, planeD, v, w, com, ref dPres, ref dLres);
+            dx = x1; x1 = (x1 * sqrt3 - y1) * 0.5f; y1 = (y1 * sqrt3 + dx) * 0.5f;
+        }
+
+        // Two spherical caps: top + bottom
+        var sph = new SphereGeometry();
+        sph.Sphere.Radius = Cylinder.Radius;
+        PhysVector3 dPcap, dLcap;
+
+        sph.Sphere.Center = Cylinder.Center + Cylinder.Axis * Cylinder.HalfHeight;
+        sph.CalculateMediumResistance(planeNormal, planeOrigin, R, offset, scale, v, w, com, out dPcap, out dLcap);
+        dPres = dPres + dPcap; dLres = dLres + dLcap;
+
+        sph.Sphere.Center = Cylinder.Center - Cylinder.Axis * Cylinder.HalfHeight;
+        sph.CalculateMediumResistance(planeNormal, planeOrigin, R, offset, scale, v, w, com, out dPcap, out dLcap);
+        dPres = dPres + dPcap; dLres = dLres + dLcap;
+    }
 }

@@ -137,7 +137,11 @@ public class WaterManager
         if (dt <= 0) return;
         Dt = dt;
 
-        float c2 = WaveSpeed * WaveSpeed * dt * dt;
+        // Literal port of CWaterMan::TimeStep (waterman.cpp:562,597):
+        //   pvel.z += (avg_neighbor_h - self_h) * waveSpeed * dt   (linear g, linear dt)
+        //   ph    += pvel.z * dt
+        // C# uses 4-neighbor laplacian = sum4 - 4*self, so (avg - self) = laplacian * 0.25.
+        float gdt = WaveSpeed * dt;
         float damping = 1f - DampingCenter * dt;
 
         int totalTiles = (NTiles * 2 + 1) * (NTiles * 2 + 1);
@@ -146,7 +150,6 @@ public class WaterManager
             var tile = Tiles[ti];
             if (tile == null || !tile.Active) continue;
 
-            // Wave equation: h_new = 2*h - h_old + c^2*(laplacian)
             for (int y = 1; y < NCells - 1; y++)
             {
                 for (int x = 1; x < NCells - 1; x++)
@@ -157,7 +160,7 @@ public class WaterManager
                         tile.Heights[i - NCells] + tile.Heights[i + NCells] -
                         4f * tile.Heights[i];
 
-                    float vel = tile.Velocities[i].Z + c2 * laplacian;
+                    float vel = tile.Velocities[i].Z + (laplacian * 0.25f) * gdt;
                     vel *= damping;
                     tile.Heights[i] += vel * dt;
                     tile.Velocities[i] = new PhysVector3(0, 0, vel);

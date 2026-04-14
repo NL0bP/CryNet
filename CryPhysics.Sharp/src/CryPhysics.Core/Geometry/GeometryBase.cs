@@ -298,6 +298,16 @@ public abstract class GeometryBase : IGeometry
     /// <summary>Get the underlying primitive for direct tests. Override in subclasses.</summary>
     public virtual Primitive? GetPrimitive() => null;
 
+    /// <summary>
+    /// Unproject a sphere out of this geometry. Returns 1 if a contact was generated.
+    /// Port of CGeometry::UnprojectSphere virtual from geometry.h.
+    /// Default implementation: no contact.
+    /// </summary>
+    public virtual int UnprojectSphere(PhysVector3 center, float r, float rsep, ref Primitives.Contact pcontact)
+    {
+        return 0;
+    }
+
     /// <summary>Collision priority for contact normal direction.</summary>
     public int CollisionPriority { get; set; }
 
