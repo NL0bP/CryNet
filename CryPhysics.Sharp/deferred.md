@@ -54,11 +54,35 @@ C++ ref: `dev/Code/CryEngine/CryPhysics/physicalplaceholder.{h,cpp}`.
 
 This is ~250 LOC of literal port that cannot be written without first porting ~1000+ LOC of supporting infrastructure (streamer, snapshot serialization, world->placeholder lookup, three-phase step protocol). Defer entire file.
 
-### `boolean2d.cpp` (~800 LOC) + `boolean3d.cpp` (~1200 LOC) — **deferred**
+### `boolean2d.cpp` — ✅ **PORTED** (Algorithms/Boolean2D.cs)
 
-C++ ref: `dev/Code/CryEngine/CryPhysics/boolean2d.cpp`, `boolean3d.cpp`.
+`Boolean2D.Compute(BoolType, ptbuf1, npt1, ptbuf2, npt2, bClosed, out ptres, out pidres)`
+literal-ports the 293-LOC C++ entry point including:
+- `LineSegInters` (boolean2d.cpp:30-57)
+- `GetCell`/`GetRect` cell hashing helpers
+- `CheckIfInside` ray-crossing test (boolean2d.cpp:71-89)
+- The full `boolean2d` driver (boolean2d.cpp:92-293) with hash-grid, intersection list,
+  inside-stripe selection.
 
-Boolean polygon/mesh operations (CSG). Self-contained algorithms but volume is large and there is no caller in the existing C# port — `TriMeshGeometry` does NOT call `CTriMesh::Boolean` paths. Defer until a consumer needs it.
+Per-call scratch buffers replace the per-thread C++ globals (g_BoolPtBufThread etc.) — equivalent
+behaviour without thread-state coupling.
+
+### `boolean3d.cpp` — 🟡 **PARTIAL** (Algorithms/Triangulation.cs)
+
+Ported (literal):
+- `TriangulatePolyBruteforce` (boolean3d.cpp:61-104)
+- `TriangulatePoly` (boolean3d.cpp:107-287) — sweep-line/sag-bridging; handles holes via `MARK_UNUSED`
+- `g_nTriangulationErrors` + `g_bBruteforceTriangulation` globals as static fields
+
+Pending (~1000 LOC, multi-session):
+- `bop_meshupdate` destructor + linked-list housekeeping (boolean3d.cpp:36-50)
+- `tessvtx`/`tesspoly` data structures + `insertBorderVtx` (boolean3d.cpp:298-342)
+- **`CTriMesh::Subtract`** (boolean3d.cpp:345-1174, ~830 LOC) — the main mesh CSG entry point.
+  Requires the BVTree-driven Intersect traversal + tessellation pipeline.
+- **`CTriMesh::Slice`** (boolean3d.cpp:1175-end, ~150 LOC) — single-plane mesh slice.
+
+These mesh-CSG paths have no consumer in the current C# port (TriMeshGeometry does not call
+Subtract/Slice). The triangulation utilities are the standalone-useful portion.
 
 ### `rwi.cpp` (~600 LOC) — **deferred**
 

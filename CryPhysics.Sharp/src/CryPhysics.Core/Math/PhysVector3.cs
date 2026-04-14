@@ -448,6 +448,10 @@ public struct PhysVector2 : IEquatable<PhysVector2>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public float Cross(in PhysVector2 other) => X * other.Y - Y * other.X;
 
+    /// <summary>Port of `vec2 ^ vec2 → float` operator from Cry_Vector2.h (wedge product).</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float operator ^(in PhysVector2 a, in PhysVector2 b) => a.X * b.Y - a.Y * b.X;
+
     /// <summary>Port of Vec2::zero() — sets components to zero in-place.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void zero() { X = 0; Y = 0; }

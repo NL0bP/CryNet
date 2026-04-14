@@ -17,7 +17,10 @@ public class EntityContact
     public PhysVector3 Pt0, Pt1;          // Contact points on body 0 and body 1
     public PhysVector3 N;                 // Contact normal
     public RigidBody? PBody0, PBody1;     // Rigid bodies involved
+    public object? PEnt0, PEnt1;          // Entity pointers (pent[0..1]) - typed as object to avoid Entities<->Dynamics dep
     public int IPart0, IPart1;            // Part indices
+    public int IPrim0, IPrim1;            // Primitive indices (pcontacts[idx].iPrim[0..1])
+    public int IFeature0, IFeature1;      // Feature indices (pcontacts[idx].iFeature[0..1])
     public PhysVector3 Nloc;              // Local normal (for constraint projection)
     public float Friction;
     public int Flags;

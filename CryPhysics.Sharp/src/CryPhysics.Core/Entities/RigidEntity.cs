@@ -50,6 +50,7 @@ internal struct ColliderRecord
     public PhysicalEntity? Entity;
     public int Part0;
     public int Part1;
+    public CryPhysics.Geometry.GeomContact? Contact;  // raw geom_contact from Intersect
 }
 
 // ============================================================================
@@ -163,6 +164,8 @@ public class RigidEntity : PhysicalEntity
 
     // Temporary buffer for contact detection
     private readonly ColliderRecord[] _curColliders = new ColliderRecord[128];
+    private int _nLastContacts;                  // g_nLastContacts — valid entries in _curColliders
+    private int _maxEntityContacts = 128;        // m_pWorld->m_vars.nMaxEntityContacts equivalent
 
     // ========================================================================
     // Constructor
@@ -707,9 +710,10 @@ public class RigidEntity : PhysicalEntity
                             Entity = collider,
                             Part0 = iPart,
                             Part1 = jPart,
+                            Contact = contacts[ic],
                         };
 
-                        if (contacts[ic].T >= 0 && (itmax < 0 || contacts[ic].T > contacts[itmax].T))
+                        if (contacts[ic].T >= 0 && (itmax < 0 || contacts[ic].T > _curColliders[itmax].Contact!.T))
                             itmax = nTotContacts;
 
                         nTotContacts++;
@@ -718,7 +722,127 @@ public class RigidEntity : PhysicalEntity
             }
         }
 
+        _nLastContacts = nTotContacts;
         return nTotContacts;
+    }
+
+    // ========================================================================
+    // AttachContact / RegisterContactPoint / PromoteCurrentContacts
+    // (port of CRigidEntity::AttachContact and CRigidEntity::RegisterContactPoint —
+    //  the bridge from raw g_CurColliders/pcontacts data into m_pColliderContacts[i])
+    // ========================================================================
+
+    /// <summary>
+    /// Splice a newly allocated EntityContact into the linked list at _colliderContacts[i].
+    /// Port of CRigidEntity::AttachContact (rigidentity.cpp:146).
+    /// </summary>
+    private void AttachContact(EntityContact pContact, int i, PhysicalEntity pCollider)
+    {
+        // Resolve collider index if stale
+        if (i >= _colliders.Count || _colliders[i] != pCollider)
+        {
+            for (i = 0; i < _colliders.Count && _colliders[i] != pCollider; i++) { }
+            if (i == _colliders.Count) return;
+        }
+
+        var head = _colliderContacts[i];
+        if (head == null)
+        {
+            _colliderContacts[i] = pContact;
+            pContact.Next = null;
+            pContact.Prev = null;
+            pContact.Flags |= (int)ContactFlags.Last;
+        }
+        else
+        {
+            pContact.Next = head;
+            pContact.Prev = null;
+            head.Prev = pContact;
+            _colliderContacts[i] = pContact;
+        }
+        _nContacts++;
+    }
+
+    /// <summary>
+    /// Promote a raw geom_contact (at _curColliders[idx]) into an EntityContact and attach it.
+    /// Port of CRigidEntity::RegisterContactPoint (rigidentity.cpp:1574).
+    /// Simplified: skips the min_dist2 merge search and iPrimCode de-dup.
+    /// </summary>
+    private EntityContact? RegisterContactPoint(int idx, PhysVector3 pt, int iPrim0, int iFeature0,
+                                                 int iPrim1, int iFeature1, int flags, float penetration,
+                                                 PhysVector3 nloc)
+    {
+        var rec = _curColliders[idx];
+        var collider = rec.Entity;
+        var gc = rec.Contact;
+        if (collider == null || gc == null) return null;
+
+        // TODO: skip contact when either part has geom_no_coll_response flag — enum not yet ported
+
+        // Cap entity-wide contact count
+        if (_nContacts >= _maxEntityContacts) return null;
+
+        int i = AddCollider(collider);
+
+        var pContact = new EntityContact
+        {
+            Pt0 = pt,
+            Pt1 = pt,
+            N = -gc.N,                               // C++: pContact->n = -pcontacts[idx].n
+            PEnt0 = this,
+            PEnt1 = collider,
+            IPart0 = rec.Part0,
+            IPart1 = rec.Part1,
+            IPrim0 = iPrim0,
+            IPrim1 = iPrim1,
+            IFeature0 = iFeature0,
+            IFeature1 = iFeature1,
+            PBody0 = Body,
+            PBody1 = (collider as RigidEntity)?.Body,
+            Penetration = penetration,
+            Nloc = nloc,
+            Flags = flags | (int)ContactFlags.New,
+            Id0 = gc.Id[0],
+            Id1 = gc.Id[1],
+        };
+
+        AttachContact(pContact, i, collider);
+        return pContact;
+    }
+
+    /// <summary>
+    /// Walk _curColliders[0.._nLastContacts] and promote each raw contact into an EntityContact.
+    /// Mirrors the post-CheckForNewContacts loop in CRigidEntity::Step (rigidentity.cpp:2570-2610).
+    /// Simplified: handles the common path (center or pt) — skips parea border loops for now.
+    /// </summary>
+    private void PromoteCurrentContacts()
+    {
+        for (int i = 0; i < _nLastContacts; i++)
+        {
+            var gc = _curColliders[i].Contact;
+            if (gc == null) continue;
+
+            // Area contact: spawn a contact per border point
+            if (gc.PArea != null && gc.PArea.Npt > 0)
+            {
+                for (int j = 0; j < gc.PArea.Npt; j++)
+                {
+                    RegisterContactPoint(i, gc.PArea.Pt[j],
+                        gc.PArea.PiPrim[0] != null && j < gc.PArea.PiPrim[0].Length ? gc.PArea.PiPrim[0][j] : gc.IPrim[0],
+                        gc.PArea.PiFeature[0] != null && j < gc.PArea.PiFeature[0].Length ? gc.PArea.PiFeature[0][j] : gc.IFeature[0],
+                        gc.PArea.PiPrim[1] != null && j < gc.PArea.PiPrim[1].Length ? gc.PArea.PiPrim[1][j] : gc.IPrim[1],
+                        gc.PArea.PiFeature[1] != null && j < gc.PArea.PiFeature[1].Length ? gc.PArea.PiFeature[1][j] : gc.IFeature[1],
+                        0, gc.T, gc.N);
+                }
+                continue;
+            }
+
+            // Single-point contact (prim-prim or center)
+            RegisterContactPoint(i, gc.Pt,
+                gc.IPrim[0], gc.IFeature[0],
+                gc.IPrim[1], gc.IFeature[1],
+                0, gc.T, gc.N);
+        }
     }
 
     // ========================================================================
@@ -909,6 +1033,11 @@ public class RigidEntity : PhysicalEntity
         // Check for new contacts (simplified)
         int itmax;
         int nContacts = CheckForNewContacts(out itmax);
+
+        // Promote raw geom_contacts into EntityContacts linked in _colliderContacts[i].
+        // Port of the post-CheckForNewContacts loop that calls RegisterContactPoint in
+        // rigidentity.cpp:2500-2610. Without this, RegisterContacts iterates an empty list.
+        PromoteCurrentContacts();
 
         // Apply gravity
         var gravity = _colliders.Count > 0 ? Gravity : GravityFreefall;
