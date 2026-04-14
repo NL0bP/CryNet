@@ -57,19 +57,18 @@ Same status as before — not yet audited.
 
 ---
 
-## REAL pending work (high confidence)
+## REAL pending work (high confidence) — updated 2026-04-14
 
-These are guaranteed real work because they are entire missing C++ files (per README.md):
+| C++ file | LOC | Status |
+|----------|-----|--------|
+| `boolean2d.cpp` | ~800 | 🔴 deferred — no consumer in C# port (see deferred.md) |
+| `boolean3d.cpp` | ~1200 | 🔴 deferred — no consumer in C# port |
+| `capsulegeom.cpp` | ~280 | 🟡 partial — `CalcPhysicalProperties`/`PointInsideStatus`/`PrepareForIntersectionTest` ported this session; `CalculateBuoyancy`/`MediumResistance`/`DrawToOcclusionCubemap`/`UnprojectSphere`/`GetUnprojectionCandidates` still inherit cylinder behaviour |
+| `physicalplaceholder.cpp` | ~227 | 🔴 deferred — depends on missing infra (streamer, snapshot serialization, three-phase step, IsPlaceholder/RepositionEntity on world) |
+| `rwi.cpp` | ~600 | 🔴 deferred — async deferred-result queue not present in C# |
+| `voxelbv.cpp` | ~200 | 🔴 deferred — functionality inlined in VoxelGeometry.cs |
 
-| C++ file | LOC | Notes |
-|----------|-----|-------|
-| `boolean2d.cpp` | ~800 | 2D boolean ops on polygons |
-| `boolean3d.cpp` | ~1200 | 3D boolean ops on meshes |
-| `capsulegeom.cpp` | ~400 | Capsule geometry |
-| `physicalplaceholder.cpp` | ~300 | Lightweight placeholder entity |
-| `rwi.cpp` | ~600 | Ray world intersection helpers |
-
-Plus issue #42 WIP (BVTree-driven `CGeometry::Intersect`).
+Plus issue #42 (BVTree-driven `CGeometry::Intersect`) — WIP commit `2420b9d`, full traversal deferred (see deferred.md).
 
 ---
 

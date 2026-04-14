@@ -313,4 +313,55 @@ public class CapsuleGeometry : CylinderGeometry
         }
         return MathF.Abs(dist - Cylinder.Radius);
     }
+
+    /// <summary>
+    /// Capsule mass properties (cylinder body + 2 hemispherical caps).
+    /// Literal port of CCapsuleGeom::CalcPhysicalProperties from capsulegeom.cpp:51-61.
+    /// </summary>
+    public override PhysicalProperties CalcPhysicalProperties()
+    {
+        // Vcap = (4/3)*PI*r^3 (full sphere from joining the two hemispheres)
+        float Vcap = (4.0f / 3f) * MathF.PI * MathUtils.Cube(Cylinder.Radius);
+        float V = MathUtils.Sqr(Cylinder.Radius) * Cylinder.HalfHeight * (MathF.PI * 2f) + Vcap;
+        float r2 = MathUtils.Sqr(Cylinder.Radius);
+        float x2 = MathF.PI * Cylinder.HalfHeight * MathUtils.Sqr(r2) * 0.5f;
+        float z2 = MathF.PI * r2 * MathUtils.Cube(Cylinder.HalfHeight) * (2.0f / 3f);
+        float ix = x2 + z2 + Vcap * (r2 * 0.4f + MathUtils.Sqr(Cylinder.HalfHeight));
+        float iz = x2 * 2f + Vcap * r2 * 0.4f;
+        return new PhysicalProperties
+        {
+            Volume = V,
+            CenterOfMass = Cylinder.Center,
+            InertiaTensor = PhysMatrix33.Diagonal(ix, ix, iz)
+        };
+    }
+
+    /// <summary>
+    /// Capsule inside test: hemispherical caps for the ends, cylindrical for the middle.
+    /// Literal port of CCapsuleGeom::PointInsideStatus from capsulegeom.cpp:64-70.
+    /// </summary>
+    public override int PointInsideStatus(in PhysVector3 pt)
+    {
+        var ptr = pt - Cylinder.Center;
+        var ptc = ptr;
+        float h = Cylinder.Axis.Dot(ptr);
+        ptr = ptr - Cylinder.Axis * h;
+        ptc = ptc - Cylinder.Axis * (Cylinder.HalfHeight * MathUtils.SgnNZ(h));
+        // isneg(min(ptc.len2-r^2, max(ptr.len2-r^2, |h|-hh)))
+        float capTerm = ptc.LengthSq() - MathUtils.Sqr(Cylinder.Radius);
+        float cylTerm = MathF.Max(ptr.LengthSq() - MathUtils.Sqr(Cylinder.Radius),
+                                  MathF.Abs(h) - Cylinder.HalfHeight);
+        return MathF.Min(capTerm, cylTerm) < 0 ? 1 : 0;
+    }
+
+    /// <summary>
+    /// Mark intersection-test scratch buffers as carrying capsule primitives.
+    /// Literal port of CCapsuleGeom::PrepareForIntersectionTest from capsulegeom.cpp:73-79.
+    /// </summary>
+    public override void PrepareForIntersectionTest(GeometryUnderTest pGTest, GeometryBase pCollider,
+        GeometryUnderTest pGTestColl, bool bKeepPrevContacts)
+    {
+        base.PrepareForIntersectionTest(pGTest, pCollider, pGTestColl, bKeepPrevContacts);
+        pGTest.TypePrim = Capsule.Type;
+    }
 }
