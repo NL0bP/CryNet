@@ -239,6 +239,12 @@ public class ActionAwake : PhysicsActionBase
     public float? MinAwakeTime { get; set; }
 }
 
+/// <summary>Remove all geometry parts from an entity. Port of pe_action_remove_all_parts (physinterface.h:1327).</summary>
+public class ActionRemoveAllParts : PhysicsActionBase
+{
+    public override int TypeId => 12; // matches ePE_action_remove_all_parts ordering in C++ enum
+}
+
 /// <summary>Add constraint action. Port of pe_action_add_constraint.</summary>
 public class ActionAddConstraint : PhysicsActionBase
 {
@@ -348,4 +354,14 @@ public class StatusCollisions : PhysicsStatusBase
     public PhysVector3[] ContactNormals { get; set; } = Array.Empty<PhysVector3>();
     public float[] ContactImpulses { get; set; } = Array.Empty<float>();
     public int CollisionCount { get; set; }
+}
+
+/// <summary>
+/// Returns the full physical entity backing a placeholder. Port of pe_status_placeholder (physinterface.h:1620-1624).
+/// On a normal entity, <see cref="PFullEntity"/> is set to that entity itself.
+/// </summary>
+public class StatusPlaceholder : PhysicsStatusBase
+{
+    public override int TypeId => 9; // matches ePE_status_placeholder ordering
+    public Entities.IPhysicalEntity? PFullEntity;
 }

@@ -77,6 +77,11 @@ public class PhysicalEntity : IPhysicalEntity
     // Flags
     public uint Flags { get; set; }
 
+    // Idle-time tracking. Port of CPhysicalEntity m_timeIdle / m_maxTimeIdle.
+    // Placeholder ctor writes m_timeIdle directly via the buddy pointer.
+    public float MaxTimeIdle { get; set; }
+    public float TimeIdle { get; set; }
+
     // Structural breakability info (port of m_pStructure from CPhysicalEntity)
     public StructureInfo? Structure { get; set; }
 

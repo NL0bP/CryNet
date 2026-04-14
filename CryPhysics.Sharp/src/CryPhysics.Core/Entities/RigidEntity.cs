@@ -74,7 +74,8 @@ public class RigidEntity : PhysicalEntity
     // Entity-level simulation parameters (from CRigidEntity members)
     // ========================================================================
 
-    public float TimeIdle { get; private set; }
+    // TimeIdle now lives on PhysicalEntity (port of CPhysicalEntity::m_timeIdle).
+    // RigidEntity reads/writes via the inherited property.
     public float MaxTimeStep { get; set; } = 0.02f;  // m_maxAllowedStep
     public float MinEnergy { get; set; } = 0.07f * 0.07f; // m_Emin = sqr(0.07)
     public float MinEnergyWater { get; set; } = 0.01f * 0.01f;

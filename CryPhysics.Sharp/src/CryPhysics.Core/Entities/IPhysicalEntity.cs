@@ -48,6 +48,24 @@ public interface IPhysicalEntity
     /// <summary>Advance simulation by one step.</summary>
     int DoStep(float timeInterval, int callerIndex = 0);
 
+    /// <summary>
+    /// Phase 1 of stepping: must be called before DoStep. Port of CPhysicalEntity::StartStep
+    /// virtual (physinterface.h:2446). Default no-op.
+    /// </summary>
+    void StartStep(float timeInterval) { }
+
+    /// <summary>
+    /// Composite step (StartStep + DoStep + post-processing). Port of CPhysicalEntity::Step
+    /// virtual. Returns 1 on success.
+    /// </summary>
+    int Step(float timeInterval) => DoStep(timeInterval);
+
+    /// <summary>
+    /// Roll the simulation back by `timeInterval`. Port of CPhysicalEntity::StepBack virtual
+    /// (physinterface.h:2447). Default no-op.
+    /// </summary>
+    void StepBack(float timeInterval) { }
+
     /// <summary>Get the physics world this entity belongs to.</summary>
     IPhysicalWorld? GetWorld();
 

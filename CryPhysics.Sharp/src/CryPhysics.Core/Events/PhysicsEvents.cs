@@ -65,7 +65,7 @@ public class EventPhysStateChange : EventPhysMono
 {
     public override int TypeId => 8; // C++ EventPhysStateChange id = 8
     public int[] SimClass = new int[2]; // old, new
-    public float TimeIdle;
+    public float TimeIdle; // how long the entity stayed without external activation (matches C++ float timeIdle)
     public PhysVector3[] BBoxOld = new PhysVector3[2];
     public PhysVector3[] BBoxNew = new PhysVector3[2];
 }

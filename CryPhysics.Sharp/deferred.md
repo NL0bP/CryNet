@@ -4,9 +4,33 @@ Per gold rule 2: items that cannot be ported literally from C++ because the C# s
 
 ---
 
-## 2026-04-14
+## 2026-04-14 (UPDATED — most deferrals resolved)
 
-### `physicalplaceholder.cpp` (227 LOC) + `physicalplaceholder.h` (111 LOC) — **deferred whole file**
+The session 2026-04-14 (commits below) added the foundational infrastructure that previously
+forced these files to be deferred. Status is updated per file.
+
+### `physicalplaceholder.cpp` — ✅ **PORTED** (Entities/PhysicalPlaceholder.cs)
+
+All required infrastructure landed:
+- `PhysicsForeignData` struct (Entities/PhysicsForeignData.cs)
+- `PhysicalEntity.TimeIdle/MaxTimeIdle` fields
+- `EventPhysStateChange.TimeIdle` field
+- `StatusPlaceholder` + `ActionRemoveAllParts` types
+- `PhysicalWorld.IsPlaceholder/RegisterPlaceholder/RepositionEntity/LockGrid/StaticPhysicalEntity/PhysicsStreamer`
+- `PhysWorldsRegistry` (g_pPhysWorlds equivalent)
+- `IPhysicsStreamer` interface (World/IPhysicsStreamer.cs)
+- `TSerialize/CStream/SerializeScopedBeginGroup/ISerialize` (Serialization/ISerialize.cs)
+- Three-phase step methods on `IPhysicalEntity`
+
+Forward methods that depended on per-entity snapshot serialization (`GetStateSnapshot`/`SetStateFromSnapshot`/`GetStateChecksum`/`SetNetworkAuthority`) currently return 0 / no-op on the placeholder because the buddy entity types have not yet implemented snapshot serialization. The placeholder API surface is complete.
+
+### `rwi.cpp` async queue — ✅ **PORTED** (World/RWIQueue.cs)
+
+`RayWorldIntersectionAsync(...)` enqueues a `SRwiRequest`; `TracePendingRays(bool)` drains the queue and dispatches `EventPhysRWIResult`. The PWI (PrimitiveWorldIntersection) async branch from rwi.cpp:689-720 is not yet ported because the immediate-mode `PrimitiveWorldIntersection` does not yet exist in the C# port — when it does, the same queue pattern applies.
+
+### Original entry below (kept for history)
+
+### `physicalplaceholder.cpp` (227 LOC) + `physicalplaceholder.h` (111 LOC) — superseded above
 
 C++ ref: `dev/Code/CryEngine/CryPhysics/physicalplaceholder.{h,cpp}`.
 
@@ -50,7 +74,24 @@ C++ ref: `dev/Code/CryEngine/CryPhysics/voxelbv.cpp`.
 
 ---
 
-### `CGeometry::Intersect` BVTree traversal — **partial (issue #42)**
+### `CGeometry::Intersect` BVTree traversal — **API expanded; recursive traversal still pending**
+
+Step toward full resolution landed in the 2026-04-14 session:
+- New `BV` class hierarchy literal-ported from bvtree.h:22-44 (BVTrees/BV.cs): `BV` base, `BVPrimitive`, `BBox`, `BVHeightfield`, `BVVoxelgrid`, `BVRay`.
+- `BVTreeTypes` enum (matches C++ `BVtreetypes`).
+- `BVTree` base expanded with all 4 `GetNodeBVRef` overloads, `GetNodeChildrenBVs` (3 overloads), 6-arg `GetNodeContents`, `GetNodeContentsIdx`, `MarkUsedTriangle`, `BuildFromGeom`, `SetGeomConvex`, `PrepareForIntersectionTestBV`, `CleanupAfterIntersectionTest`, `ReleaseLastBVs`, `ReleaseLastSweptBVs`, `SplitPriority`, `GetMaxSkipDim`, `GetTypeId` — all defaulting to no-op matching C++ default bodies.
+
+Still pending for a complete literal port of `CGeometry::Intersect`:
+- Per-subclass `GetNodeBVRef` + 6-arg `GetNodeContents` overrides on `AABBTree`, `OBBTree`, `SingleBoxTree`, `HeightfieldBV`, `RayBV`, voxel BV.
+- Global scratch pool: `g_Contacts[]`, `g_AreaBuf[]`, `g_AreaPtBuf[]`, `g_BrdPtBuf[]`, `g_nTotContacts`, `g_Overlapper.Init()`, `ResetGlobalPrimsBuffers(iCaller)`, per-thread iCaller-keyed.
+- Helper `GTestPrepPartDeux(gtest, offsetWorld)` (geometry.cpp:280-287).
+- Recursive `IntersectBVs(gtest, pBV1, pBV2)` (the actual traversal).
+- Sweep-test branch (geometry.cpp:454+).
+- Hash-based contact merging.
+
+Estimated remaining: ~700-1000 LOC across 6 BVTree subclasses + 2 helpers + the recursive driver. Single-file effort; tracked as Tier 3 #42.
+
+### `CGeometry::Intersect` BVTree traversal — original entry below (kept for history)
 
 C++ ref: `dev/Code/CryEngine/CryPhysics/geometry.cpp:289-450`.
 

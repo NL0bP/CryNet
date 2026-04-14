@@ -43,8 +43,7 @@ public abstract class BVTree
     public abstract void GetNodeBV(ref BoundingVolume bv, int iNode,
         in PhysVector3 offset, float scale, in PhysQuaternion rotation);
 
-    /// <summary>Get the number of primitive contents in a node.</summary>
-    public abstract int GetNodeContents(int iNode, ref int[] contents);
+    // Legacy 2-arg GetNodeContents lives on the base now (see literal C++ API section below).
 
     /// <summary>Get total number of nodes.</summary>
     public abstract int NodeCount { get; }
@@ -80,6 +79,96 @@ public abstract class BVTree
     {
         return new List<(Primitive, int)>();
     }
+
+    // ----------------------------------------------------------------------------
+    // Literal C++ CBVTree API (bvtree.h:108-150). New methods take/return the BV
+    // class hierarchy from BV.cs. Default implementations match the C++ defaults
+    // exactly (no-op or return 0/1). Subclasses may override.
+    // ----------------------------------------------------------------------------
+
+    /// Port of `virtual int GetType() = 0;` (bvtree.h:111).
+    public virtual int GetTypeId() => -1;
+
+    /// Port of `virtual void GetBBox(box *pbox) {}` (bvtree.h:112).
+    public virtual void GetBBox(ref Box pbox) { }
+
+    /// Port of `virtual float Build(CGeometry *pGeom) = 0;` (bvtree.h:114).
+    /// Default returns 0; subclasses override to drive tree construction.
+    public virtual float BuildFromGeom(Geometry.GeometryBase pGeom) { return 0f; }
+
+    /// Port of `virtual void SetGeomConvex() {}`.
+    public virtual void SetGeomConvex() { }
+
+    /// Port of `virtual int PrepareForIntersectionTest(geometry_under_test*, CGeometry*, geometry_under_test*)`
+    /// (bvtree.h:117-123). Returns 1 (continue) and clears the used-nodes scratch.
+    public virtual int PrepareForIntersectionTestBV(Geometry.GeometryUnderTest pGTest,
+        Geometry.GeometryBase pCollider, Geometry.GeometryUnderTest pGTestColl)
+    {
+        // Mirrors the C++ default body that null-clears pUsedNodesMap/pUsedNodesIdx.
+        return 1;
+    }
+
+    /// Port of `virtual void CleanupAfterIntersectionTest(geometry_under_test*)` (bvtree.h:125).
+    public virtual void CleanupAfterIntersectionTest(Geometry.GeometryUnderTest pGTest) { }
+
+    /// Port of `virtual void GetNodeBV(BV*&, int iNode=0, int iCaller=0)` (bvtree.h:126).
+    public virtual void GetNodeBVRef(out BV pBV, int iNode = 0, int iCaller = 0) { pBV = new BBox(); }
+
+    /// Port of `virtual void GetNodeBV(BV*&, const Vec3 &sweepdir, float sweepstep, int iNode=0, int iCaller=0)` (bvtree.h:127).
+    public virtual void GetNodeBVRef(out BV pBV, in PhysVector3 sweepDir, float sweepStep, int iNode = 0, int iCaller = 0)
+    {
+        GetNodeBVRef(out pBV, iNode, iCaller);
+    }
+
+    /// Port of `virtual void GetNodeBV(const Matrix33 &Rw, const Vec3 &offsw, float scalew, BV*&, int iNode=0, int iCaller=0)` (bvtree.h:128).
+    public virtual void GetNodeBVRef(in PhysMatrix33 Rw, in PhysVector3 offsw, float scalew,
+        out BV pBV, int iNode = 0, int iCaller = 0)
+    {
+        GetNodeBVRef(out pBV, iNode, iCaller);
+    }
+
+    /// Port of `virtual void GetNodeBV(...sweepdir, sweepstep...)` (bvtree.h:129).
+    public virtual void GetNodeBVRef(in PhysMatrix33 Rw, in PhysVector3 offsw, float scalew,
+        out BV pBV, in PhysVector3 sweepDir, float sweepStep, int iNode = 0, int iCaller = 0)
+    {
+        GetNodeBVRef(Rw, offsw, scalew, out pBV, iNode, iCaller);
+    }
+
+    /// Port of `virtual float SplitPriority(const BV *pBV)` (bvtree.h:130).
+    public virtual float SplitPriority(BV pBV) => 0f;
+
+    /// Port of `virtual void GetNodeChildrenBVs(...)` overloads (bvtree.h:131-133). Default no-ops.
+    public virtual void GetNodeChildrenBVs(in PhysMatrix33 Rw, in PhysVector3 offsw, float scalew,
+        BV pBVParent, out BV? pBVChild1, out BV? pBVChild2, int iCaller = 0)
+    { pBVChild1 = null; pBVChild2 = null; }
+    public virtual void GetNodeChildrenBVs(BV pBVParent, out BV? pBVChild1, out BV? pBVChild2, int iCaller = 0)
+    { pBVChild1 = null; pBVChild2 = null; }
+    public virtual void GetNodeChildrenBVs(BV pBVParent, in PhysVector3 sweepDir, float sweepStep,
+        out BV? pBVChild1, out BV? pBVChild2, int iCaller = 0)
+    { pBVChild1 = null; pBVChild2 = null; }
+
+    /// Port of `virtual void ReleaseLastBVs(int iCaller=0)` (bvtree.h:134-135).
+    public virtual void ReleaseLastBVs(int iCaller = 0) { }
+    public virtual void ReleaseLastSweptBVs(int iCaller = 0) { }
+    public virtual void ResetCollisionArea() { }
+    public virtual float GetMaxSkipDim() => 0f;
+
+    /// Port of `virtual int GetNodeContents(int iNode, BV *pBVCollider, int bColliderUsed,
+    /// int bColliderLocal, geometry_under_test *pGTest, geometry_under_test *pGTestOp) = 0;` (bvtree.h:145-146).
+    /// Default returns 0 (no primitives); concrete trees override.
+    public virtual int GetNodeContents(int iNode, BV pBVCollider, int bColliderUsed, int bColliderLocal,
+        Geometry.GeometryUnderTest pGTest, Geometry.GeometryUnderTest pGTestOp)
+    { return 0; }
+
+    /// Port of `virtual int GetNodeContentsIdx(int iNode, int &iStartPrim)` (bvtree.h:148).
+    public virtual int GetNodeContentsIdx(int iNode, out int iStartPrim) { iStartPrim = 0; return 1; }
+
+    /// Port of `virtual void MarkUsedTriangle(int itri, geometry_under_test *pGTest)` (bvtree.h:149).
+    public virtual void MarkUsedTriangle(int itri, Geometry.GeometryUnderTest pGTest) { }
+
+    // Legacy adapter — keeps the simpler 2-arg GetNodeContents signature usable from
+    // older code paths. New traversal in CGeometry::Intersect uses the 6-arg overload above.
+    public virtual int GetNodeContents(int iNode, ref int[] contents) { contents = System.Array.Empty<int>(); return 0; }
 }
 
 /// <summary>

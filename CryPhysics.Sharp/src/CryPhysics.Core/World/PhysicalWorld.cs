@@ -130,7 +130,7 @@ public class EventClient
 /// Port of CPhysicalWorld from CryEngine.
 /// Supports both single-threaded and multi-threaded stepping.
 /// </summary>
-public class PhysicalWorld : IPhysicalWorld
+public partial class PhysicalWorld : IPhysicalWorld
 {
     private readonly List<IPhysicalEntity> _entities = new();
     private readonly Dictionary<int, IPhysicalEntity> _entityById = new();
@@ -155,6 +155,23 @@ public class PhysicalWorld : IPhysicalWorld
     public PhysicsVars Vars { get; } = new();
     public GeometryManager GeomManager { get; } = new();
     public SurfaceParameters[] SurfaceParams { get; } = new SurfaceParameters[SurfaceConstants.NSurfaceTypes];
+
+    /// Set of placeholder entities the world owns. Mirrors C++ CPhysicalPlaceholder
+    /// instances tracked separately from full entities. Used for `IsPlaceholder` lookup.
+    private readonly HashSet<IPhysicalEntity> _placeholders = new();
+
+    /// Atomic counter for grid-mutation locking. Port of `m_lockGrid` from
+    /// physicalworld.h (used by RepositionEntity and CPhysicalPlaceholder).
+    public int LockGrid; // intentionally public — C++ does AtomicAdd(&m_lockGrid, ...)
+
+    /// Streamer callback. Port of `m_pPhysicsStreamer` from physicalworld.h.
+    public IPhysicsStreamer? PhysicsStreamer { get; set; }
+
+    /// Singleton placeholder used as the fallback "no-op" buddy when the streamer
+    /// returns nothing. Port of `g_StaticPhysicalEntity` from physicalplaceholder.cpp:51.
+    public PhysicalEntity StaticPhysicalEntity { get; } = new PhysicalEntity();
+
+    public PhysicalWorld() { PhysWorldsRegistry.Register(this); }
 
     public float PhysicsTime => _physicsTime;
 
@@ -235,6 +252,26 @@ public class PhysicalWorld : IPhysicalWorld
         _grid?.RemoveEntity(entity);
         _entities.Remove(entity);
         _entityById.Remove(entity.Id);
+        _placeholders.Remove(entity);
+    }
+
+    /// Mark an entity as a placeholder (registered separately from the entity list).
+    /// Port of CPhysicalWorld placeholder bookkeeping.
+    public void RegisterPlaceholder(IPhysicalEntity placeholder) => _placeholders.Add(placeholder);
+
+    /// Test whether the entity is a placeholder owned by this world.
+    /// Port of `bool CPhysicalWorld::IsPlaceholder(const CPhysicalPlaceholder*)`
+    /// used by physicalplaceholder.cpp:34,47.
+    public bool IsPlaceholder(IPhysicalEntity entity) => _placeholders.Contains(entity);
+
+    /// Re-bin an entity in the spatial grid after its bbox changed.
+    /// Port of `int CPhysicalWorld::RepositionEntity(CPhysicalPlaceholder*, int)`
+    /// used by physicalplaceholder.cpp:99. Returns the lock-grid delta (always 0
+    /// in this implementation since the grid uses fine-grained locks internally).
+    public int RepositionEntity(IPhysicalEntity entity, int flags)
+    {
+        _grid?.UpdateEntity(entity);
+        return 0;
     }
 
     /// <summary>
