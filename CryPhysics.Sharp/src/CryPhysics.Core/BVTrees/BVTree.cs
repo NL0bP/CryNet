@@ -61,6 +61,17 @@ public abstract class BVTree
     /// <summary>Get memory usage.</summary>
     public virtual int GetMemoryUsage() => 0;
 
+    /// <summary>Maximum number of primitives held in a single leaf node.
+    /// Port of CBVTree::MaxPrimsInNode from bvtree.h. Default is 1.</summary>
+    public virtual int MaxPrimsInNode() => 1;
+
+    /// <summary>
+    /// Prepare this tree for an intersection test. Port of CBVTree::PrepareForIntersectionTest from bvtree.h.
+    /// Default implementation is a no-op; subclasses may override to allocate scratch state.
+    /// </summary>
+    public virtual void PrepareForIntersectionTest(Geometry.GeometryUnderTest pGTest,
+        Geometry.GeometryBase pCollider, Geometry.GeometryUnderTest pGTestColl) { }
+
     /// <summary>
     /// Get all leaf primitives from this tree. Used for simplified intersection.
     /// Returns a list of (Primitive, index) pairs.

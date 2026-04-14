@@ -2,6 +2,7 @@
 // Original: Copyright Crytek GMBH, used under license
 
 using CryPhysics.BVTrees;
+using CryPhysics.Collision;
 using CryPhysics.Math;
 using CryPhysics.Primitives;
 
@@ -201,6 +202,10 @@ public class TriMeshGeometry : GeometryBase
 
     // Mesh error count from topology calculation
     public int ErrorCount { get; private set; }
+
+    // Maximum valency (triangles sharing a vertex) — port of m_nMaxVertexValency from CTriMesh.
+    // Used to size scratch buffers during intersection; defaults to 8 as in the C++ code.
+    public int MaxVertexValency { get; set; } = 8;
 
     // Cached AABB
     private PhysVector3 _bboxMin, _bboxMax;
@@ -1769,5 +1774,122 @@ public class TriMeshGeometry : GeometryBase
         int topMem = Topology != null ? Topology.Length * 12 : 0;
         return Vertices.Length * 12 + Indices.Length * 4 + Normals.Length * 12
              + topMem + (Tree?.GetMemoryUsage() ?? 0);
+    }
+
+    // ========================================================================
+    // Intersection (port of CTriMesh::PrepareForIntersectionTest / Intersect)
+    // ========================================================================
+
+    /// <summary>
+    /// Prepare this trimesh for an intersection test.
+    /// Port of CTriMesh::PrepareForIntersectionTest from trimesh.cpp lines 1211-1268.
+    /// </summary>
+    public override void PrepareForIntersectionTest(GeometryUnderTest pGTest, GeometryBase pCollider,
+        GeometryUnderTest pGTestColl, bool bKeepPrevContacts)
+    {
+        pGTest.Geometry = this;
+        pGTest.BVtree = Tree;
+        BVTrees.BVTree? pTree = Tree;
+        pTree?.PrepareForIntersectionTest(pGTest, pCollider, pGTestColl);
+
+        pGTest.TypePrim = IndexedTriangle.Type;
+        int nNodeTris = pTree != null ? pTree.MaxPrimsInNode() : 1;
+
+        // Allocate scratch buffers (C# uses heap arrays in place of C++ thread-local ring buffers)
+        var primBuf = new IndexedTriangle[nNodeTris];
+        for (int i = 0; i < nNodeTris; i++) primBuf[i] = new IndexedTriangle();
+        pGTest.PrimBuf = primBuf;
+        pGTest.SzPrimBuf = nNodeTris;
+
+        var primBuf1 = new IndexedTriangle[MaxVertexValency];
+        for (int i = 0; i < MaxVertexValency; i++) primBuf1[i] = new IndexedTriangle();
+        pGTest.PrimBuf1 = primBuf1;
+        pGTest.SzPrimBuf1 = MaxVertexValency;
+
+        pGTest.IFeatureBuf = new int[MaxVertexValency];
+
+        int szbuf = System.Math.Max(nNodeTris, MaxVertexValency);
+        pGTest.IdBuf = new byte[szbuf];
+
+        pGTest.SzPrim = 1; // sizeof(indexed_triangle) — not meaningful in C#, retain non-zero marker
+
+        pGTest.MinAreaEdge = 0;
+    }
+
+    /// <summary>
+    /// Simple intersection entry point used by the driver for Box / Capsule colliders.
+    /// Iterates all triangles and calls the appropriate primitive intersection test.
+    /// Port of the Box / Capsule branches of CGeometry::Intersect (geometry.cpp lines 289-485)
+    /// combined with CTriMesh's per-triangle primitive loop.
+    /// </summary>
+    public override int Intersect(GeometryBase other, ref GeomContact[] contacts)
+    {
+        if (other == null) return 0;
+        int nContacts = 0;
+        if (contacts == null) contacts = new GeomContact[System.Math.Max(8, TriCount)];
+
+        var tri = new Triangle();
+        var pinters = new PrimInters();
+
+        if (other.GeomType == GeomTypes.Box)
+        {
+            var pbox = ((BoxGeometry)other).Box;
+            for (int itri = 0; itri < TriCount; itri++)
+            {
+                int idx = itri * 3;
+                tri.P0 = Vertices[Indices[idx]];
+                tri.P1 = Vertices[Indices[idx + 1]];
+                tri.P2 = Vertices[Indices[idx + 2]];
+                tri.Normal = Normals[itri];
+
+                if (IntersectionTests.TriBox(tri, pbox, pinters) > 0)
+                {
+                    if (nContacts >= contacts.Length)
+                        System.Array.Resize(ref contacts, contacts.Length * 2);
+
+                    var c = new GeomContact
+                    {
+                        Pt = pinters.Pt0,
+                        N = pinters.Normal,
+                    };
+                    c.IPrim[0] = itri;
+                    c.Id[0] = GetMaterialId(itri);
+                    contacts[nContacts++] = c;
+                }
+            }
+            return nContacts;
+        }
+
+        if (other.GeomType == GeomTypes.Capsule)
+        {
+            var cyl = ((CapsuleGeometry)other).Cylinder;
+            var pcaps = new Capsule(cyl.Center, cyl.Axis, cyl.Radius, cyl.HalfHeight);
+            for (int itri = 0; itri < TriCount; itri++)
+            {
+                int idx = itri * 3;
+                tri.P0 = Vertices[Indices[idx]];
+                tri.P1 = Vertices[Indices[idx + 1]];
+                tri.P2 = Vertices[Indices[idx + 2]];
+                tri.Normal = Normals[itri];
+
+                if (IntersectionTests.TriCapsule(tri, pcaps, pinters) > 0)
+                {
+                    if (nContacts >= contacts.Length)
+                        System.Array.Resize(ref contacts, contacts.Length * 2);
+
+                    var c = new GeomContact
+                    {
+                        Pt = pinters.Pt0,
+                        N = pinters.Normal,
+                    };
+                    c.IPrim[0] = itri;
+                    c.Id[0] = GetMaterialId(itri);
+                    contacts[nContacts++] = c;
+                }
+            }
+            return nContacts;
+        }
+
+        return base.Intersect(other, ref contacts);
     }
 }

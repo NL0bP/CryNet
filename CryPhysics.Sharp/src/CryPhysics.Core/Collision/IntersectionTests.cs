@@ -159,42 +159,69 @@ public static class IntersectionTests
     // ============================================================================
     public static int TriRay(Primitive p1, Primitive p2, PrimInters pinters)
     {
-        return RayTriImpl((Triangle)p1, (Ray)p2, pinters);
+        // tri_ray_intersection: calls ray_tri_intersection, then swaps features diagonally and flips normal
+        int res = RayTriImpl((Ray)p2, (Triangle)p1, pinters);
+        byte tmp;
+        tmp = pinters.Feature[0, 0]; pinters.Feature[0, 0] = pinters.Feature[1, 1]; pinters.Feature[1, 1] = tmp;
+        tmp = pinters.Feature[0, 1]; pinters.Feature[0, 1] = pinters.Feature[1, 0]; pinters.Feature[1, 0] = tmp;
+        pinters.Normal = -pinters.Normal;
+        return res;
     }
 
     public static int RayTri(Primitive p1, Primitive p2, PrimInters pinters)
     {
-        return RayTriImpl((Triangle)p2, (Ray)p1, pinters);
+        return RayTriImpl((Ray)p1, (Triangle)p2, pinters);
     }
 
-    private static int RayTriImpl(Triangle tri, Ray ray, PrimInters pinters)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static float FSel(float a, float b, float c) { return a >= 0f ? b : c; }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static float SqrSigned(float x) { return x >= 0f ? x * x : -(x * x); }
+
+    // Literal port of ray_tri_intersection from intersectionchecks.cpp:731-769
+    private static int RayTriImpl(Ray pray, Triangle ptri, PrimInters pinters)
     {
-        var e1 = tri.P1 - tri.P0;
-        var e2 = tri.P2 - tri.P0;
-        var h = ray.Dir ^ e2;
-        float a = e1.Dot(h);
+        float fDotDir0 = pray.Dir.Dot(ptri.Normal);
 
-        if (MathF.Abs(a) < 1e-10f) return 0;
+        if (Sqr(fDotDir0) > pinters.MinPtDist2 * Sqr(1E-4f))
+        {
+            float fSign = FSel(fDotDir0, 1.0f, -1.0f);
+            float fDotPt0 = ((ptri.P0 - pray.Origin).Dot(ptri.Normal)) * fSign;
+            float fDotDir = fDotDir0 * fSign;
 
-        float f = 1f / a;
-        var s = ray.Origin - tri.P0;
-        float u = f * s.Dot(h);
-        if (u < 0f || u > 1f) return 0;
+            PhysVector3 pt = pray.Origin * fDotDir + pray.Dir * fDotPt0;
+            float nlen2 = ptri.Normal.GetLengthSquared() * fDotDir;
 
-        var q = s ^ e1;
-        float v = f * ray.Dir.Dot(q);
-        if (v < 0f || u + v > 1f) return 0;
+            if (fDotDir < MathF.Abs(fDotPt0 * 2.0f - fDotDir))
+                return 0;
 
-        float t = f * e2.Dot(q);
-        if (t < 0f || t > 1f) return 0;
+            PhysVector3 edge0 = ptri.P1 - ptri.P0;
+            if (SqrSigned(ptri.Normal.Dot(edge0 ^ (pt - ptri.P0 * fDotDir))) + pinters.MinPtDist2 * edge0.GetLengthSquared() * nlen2 < 0.0f)
+                return 0;
 
-        var hitPt = ray.Origin + ray.Dir * t;
-        pinters.Pt0 = hitPt;
-        pinters.Pt1 = hitPt;
-        pinters.Normal = tri.Normal;
+            PhysVector3 edge1 = ptri.P2 - ptri.P1;
+            if (SqrSigned(ptri.Normal.Dot(edge1 ^ (pt - ptri.P1 * fDotDir))) + pinters.MinPtDist2 * edge1.GetLengthSquared() * nlen2 < 0.0f)
+                return 0;
 
-        return 1;
+            PhysVector3 edge2 = ptri.P0 - ptri.P2;
+            if (SqrSigned(ptri.Normal.Dot(edge2 ^ (pt - ptri.P2 * fDotDir))) + pinters.MinPtDist2 * edge2.GetLengthSquared() * nlen2 < 0.0f)
+                return 0;
+
+            PhysVector3 outPt = pray.Origin + pray.Dir * (fDotPt0 / fDotDir);
+            pinters.Pt0 = outPt;
+            pinters.Pt1 = outPt;
+            pinters.Normal = ptri.Normal;
+            pinters.Feature[0, 0] = pinters.Feature[1, 0] = 0x40;
+            pinters.Feature[0, 1] = pinters.Feature[1, 1] = 0x20;
+            return 1;
+        }
+
+        return 0;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static float Sqr(float x) { return x * x; }
 
     // ============================================================================
     // Helper: swap pinters for reversed intersection calls
@@ -1152,6 +1179,43 @@ public static class IntersectionTests
             pinters.BestPt = pinters.Pt0;
             pinters.Normal = ptri.Normal;
             pinters.NBestPtVal = 1000;
+
+            // Port of C++ intersectionchecks.cpp lines 576-591: bottommost capsule edge
+            // + axial-sweep second probe when capsule axis is (nearly) parallel to triangle.
+            {
+                var pt = ptmin;
+                int borderCap = pinters.NBorderSz > 0 ? pinters.NBorderSz : (pinters.BorderPts?.Length ?? 0);
+                if ((pt - ptri.P0).Dot(ptri.Normal) >= (pcaps.HalfHeight + pcaps.Radius) * -0.2f
+                    && (pt - ptri.P0).Dot(ptri.Normal) <= 0.0f
+                    && ((pt - ptri.P0) ^ (ptri.P1 - ptri.P0)).Dot(ptri.Normal) < 0
+                    && ((pt - ptri.P1) ^ (ptri.P2 - ptri.P1)).Dot(ptri.Normal) < 0
+                    && ((pt - ptri.P2) ^ (ptri.P0 - ptri.P2)).Dot(ptri.Normal) < 0
+                    && pinters.BorderPts != null && pinters.NBorderPt < borderCap)
+                {
+                    pinters.BorderPts[pinters.NBorderPt++] = pt;
+                }
+
+                if (MathF.Abs(ptri.Normal.Dot(pcaps.Axis)) < 0.1f)
+                {
+                    float distNum = (ptri.P0 - pt).Dot(ptri.Normal);
+                    float distDen = MathF.Abs(pcaps.Axis.Dot(ptri.Normal));
+                    if (distNum >= 0.0f && distNum <= pcaps.HalfHeight * 2 * distDen)
+                        pt = pt + pcaps.Axis * (jsg * (distNum / distDen));
+                    else
+                        pt = pt + pcaps.Axis * (pcaps.HalfHeight * 2 * jsg);
+
+                    float proj = (pt - ptri.P0).Dot(ptri.Normal);
+                    if (proj >= (pcaps.HalfHeight + pcaps.Radius) * -0.2f
+                        && proj <= 0.0f
+                        && ((pt - ptri.P0) ^ (ptri.P1 - ptri.P0)).Dot(ptri.Normal) < 0
+                        && ((pt - ptri.P1) ^ (ptri.P2 - ptri.P1)).Dot(ptri.Normal) < 0
+                        && ((pt - ptri.P2) ^ (ptri.P0 - ptri.P2)).Dot(ptri.Normal) < 0
+                        && pinters.BorderPts != null && pinters.NBorderPt < borderCap)
+                    {
+                        pinters.BorderPts[pinters.NBorderPt++] = pt;
+                    }
+                }
+            }
             return 1;
         }
 
@@ -1171,17 +1235,44 @@ public static class IntersectionTests
         // Check if capsule cap's lowest point is inside triangle's Voronoi region
         int jcap = MathUtils.SgnNZ(pcaps.Axis.Dot(ptri.Normal));
         var ptCap = pcaps.Center - pcaps.Axis * (pcaps.HalfHeight * jcap) - ptri.Normal * pcaps.Radius;
-        if ((ptCap - ptri.P0).Dot(ptri.Normal) > (pcaps.HalfHeight + pcaps.Radius) * -0.2f
-            && ((ptCap - ptri.P0) ^ (ptri.P1 - ptri.P0)).Dot(ptri.Normal) < 0
-            && ((ptCap - ptri.P1) ^ (ptri.P2 - ptri.P1)).Dot(ptri.Normal) < 0
-            && ((ptCap - ptri.P2) ^ (ptri.P0 - ptri.P2)).Dot(ptri.Normal) < 0)
         {
-            if (pinters.BorderPts != null && pinters.NBorderPt < pinters.BorderPts.Length)
+            int borderCap = pinters.NBorderSz > 0 ? pinters.NBorderSz : (pinters.BorderPts?.Length ?? 0);
+            if ((ptCap - ptri.P0).Dot(ptri.Normal) > (pcaps.HalfHeight + pcaps.Radius) * -0.2f
+                && ((ptCap - ptri.P0) ^ (ptri.P1 - ptri.P0)).Dot(ptri.Normal) < 0
+                && ((ptCap - ptri.P1) ^ (ptri.P2 - ptri.P1)).Dot(ptri.Normal) < 0
+                && ((ptCap - ptri.P2) ^ (ptri.P0 - ptri.P2)).Dot(ptri.Normal) < 0)
             {
-                pinters.BestPt = ptCap;
-                pinters.Normal = ptri.Normal;
-                pinters.NBestPtVal = 1000;
-                pinters.BorderPts[pinters.NBorderPt++] = ptCap;
+                if (pinters.BorderPts != null && pinters.NBorderPt < borderCap)
+                {
+                    pinters.BestPt = ptCap;
+                    pinters.Normal = ptri.Normal;
+                    pinters.NBestPtVal = 1000;
+                    pinters.BorderPts[pinters.NBorderPt++] = ptCap;
+                }
+            }
+
+            // Port of C++ intersectionchecks.cpp lines 618-628: axial-sweep second probe
+            // when capsule axis is (nearly) parallel to triangle.
+            if (MathF.Abs(ptri.Normal.Dot(pcaps.Axis)) < 0.1f)
+            {
+                var pt = ptCap;
+                float distNum = (ptri.P0 - pt).Dot(ptri.Normal);
+                float distDen = MathF.Abs(pcaps.Axis.Dot(ptri.Normal));
+                if (distNum >= 0.0f && distNum <= pcaps.HalfHeight * 2 * distDen)
+                    pt = pt + pcaps.Axis * (jcap * (distNum / distDen));
+                else
+                    pt = pt + pcaps.Axis * (pcaps.HalfHeight * 2 * jcap);
+
+                float proj = (pt - ptri.P0).Dot(ptri.Normal);
+                if (proj >= (pcaps.HalfHeight + pcaps.Radius) * -0.2f
+                    && proj <= 0.0f
+                    && ((pt - ptri.P0) ^ (ptri.P1 - ptri.P0)).Dot(ptri.Normal) < 0
+                    && ((pt - ptri.P1) ^ (ptri.P2 - ptri.P1)).Dot(ptri.Normal) < 0
+                    && ((pt - ptri.P2) ^ (ptri.P0 - ptri.P2)).Dot(ptri.Normal) < 0
+                    && pinters.BorderPts != null && pinters.NBorderPt < borderCap)
+                {
+                    pinters.BorderPts[pinters.NBorderPt++] = pt;
+                }
             }
         }
 

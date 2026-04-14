@@ -96,6 +96,16 @@ public abstract class GeometryBase : IGeometry
     }
 
     /// <summary>
+    /// Prepare this geometry for a collider-vs-this intersection test.
+    /// Port of CGeometry::PrepareForIntersectionTest (virtual).
+    /// Base implementation is a no-op — overridden by CTriMesh / CHeightfield.
+    /// </summary>
+    public virtual void PrepareForIntersectionTest(GeometryUnderTest pGTest, GeometryBase collider,
+        GeometryUnderTest pGTestColl, bool bKeepPrevContacts)
+    {
+    }
+
+    /// <summary>
     /// Full intersection test with world transforms and BVTree traversal.
     /// Port of CGeometry::Intersect from geometry.cpp.
     /// Returns number of contacts found.

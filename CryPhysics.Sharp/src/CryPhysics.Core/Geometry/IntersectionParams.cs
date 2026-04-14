@@ -2,6 +2,7 @@
 // Original: Copyright Crytek GMBH, used under license
 
 using CryPhysics.Math;
+using CryPhysics.Primitives;
 
 namespace CryPhysics.Geometry;
 
@@ -75,6 +76,23 @@ public class GeometryUnderTest
     public PhysVector3 PtOutsidePivot;
     public IntersectionParams? Params;
     public float MinAreaEdge;
+
+    // Sweep test parameters (port of geometry_under_test::sweepdir_loc, sweepstep, sweepstep_loc)
+    public PhysVector3 SweepDirLoc;
+    public float SweepStepLoc;
+
+    // Primitive buffers used during intersection (port of primbuf/primbuf1 + szprim/szprim1 + iFeatureBuf + idbuf + typeprim)
+    public int TypePrim;
+    public IndexedTriangle[]? PrimBuf;
+    public int SzPrimBuf;
+    public IndexedTriangle[]? PrimBuf1;
+    public int SzPrimBuf1;
+    public int[]? IFeatureBuf;
+    public byte[]? IdBuf;
+    public int SzPrim;
+
+    // Caller-id (port of geometry_under_test::iCaller) — used when selecting per-thread storage
+    public int ICaller;
 }
 
 /// <summary>

@@ -8,12 +8,79 @@ using CryPhysics.Primitives;
 namespace CryPhysics.Geometry;
 
 /// <summary>
+/// Checker used by the heightfield ray intersection.
+/// Port of the anonymous struct hf_cell_checker in heightfieldgeom.cpp (lines 56-89).
+/// </summary>
+internal struct HfCellChecker
+{
+    public float Dir2dLen;
+    public float MaxZCell;
+    public float MaxT;
+    public int IdContact;
+    public int BNoCull;
+    public Triangle HfTri;
+    public Ray HfRay;
+    public Heightfield? Phf;
+    public PrimInters Inters;
+    public PhysVector2 Org2d;
+    public PhysVector2 Dir2d;
+
+    /// <summary>
+    /// Test a single heightfield cell against the ray.
+    /// Port of hf_cell_checker::check_cell (heightfieldgeom.cpp:65-88).
+    /// Returns 1 to stop grid traversal, 0 to continue.
+    /// </summary>
+    public int CheckCell(Vector2i icell, ref int ilastcell)
+    {
+        if (Phf == null) return 1;
+        // quotientf t((org2d+icell)*dir2d, dir2d_len*dir2d_len)
+        float tNum = (Org2d.X + icell.X) * Dir2d.X + (Org2d.Y + icell.Y) * Dir2d.Y;
+        float tDen = Dir2dLen * Dir2dLen;
+        // t.x>maxt  <=>  tNum > MaxT*tDen (assuming tDen>=0 — dir2d_len*dir2d_len>=0)
+        if (tNum > MaxT * tDen || !Phf.InRange(icell.X, icell.Y))
+            return 1;
+
+        float[] h = new float[4];
+        // zlowest = hfray.origin.z*t.y + hfray.dir.z*t.x - max_zcell
+        float zlowest = HfRay.Origin.Z * tDen + HfRay.Dir.Z * tNum - MaxZCell;
+        int itype = Phf.GetSurfTypeAt(icell.X, icell.Y);
+        h[0] = Phf.GetHeightAt(icell.X, icell.Y);
+        h[1] = Phf.GetHeightAt(icell.X + 1, icell.Y);
+        h[2] = Phf.GetHeightAt(icell.X, icell.Y + 1);
+        h[3] = Phf.GetHeightAt(icell.X + 1, icell.Y + 1);
+
+        float maxh = MathF.Max(MathF.Max(MathF.Max(h[0], h[1]), h[2]), h[3]);
+        if (zlowest <= maxh * tDen && itype >= 0)
+        {
+            HfTri ??= new Triangle();
+            // First triangle: p0=(ix*step,iy*step,h0), p1=((ix+1)*step,iy*step,h1), p2=(ix*step,(iy+1)*step,h2)
+            HfTri.P0 = new PhysVector3(icell.X * Phf.Step.X, icell.Y * Phf.Step.Y, h[0]);
+            HfTri.P1 = new PhysVector3(HfTri.P0.X + Phf.Step.X, icell.Y * Phf.Step.Y, h[1]);
+            HfTri.P2 = new PhysVector3(icell.X * Phf.Step.X, HfTri.P0.Y + Phf.Step.Y, h[2]);
+            HfTri.Normal = (HfTri.P1 - HfTri.P0) ^ (HfTri.P2 - HfTri.P0);
+            // Ray-tri intersection placeholder — full ray path is not used for ships
+            // if (ray_tri_intersection(...) && hftri.n*hfray.dir<bNoCull) { ... return 1; }
+
+            // Second triangle: rotate — p0 = previous p2, p2.x += step, p2.z = h[3]
+            HfTri.P0 = HfTri.P2;
+            HfTri.P2 = new PhysVector3(HfTri.P2.X + Phf.Step.X, HfTri.P2.Y, h[3]);
+            HfTri.Normal = (HfTri.P1 - HfTri.P0) ^ (HfTri.P2 - HfTri.P0);
+            // if (ray_tri_intersection(...) && ...) { idcontact = itype; return 1; }
+        }
+        return 0;
+    }
+}
+
+/// <summary>
 /// Heightfield collision geometry. Extends TriMeshGeometry to generate
 /// triangles on-the-fly from a 2D height grid.
 /// Port of CHeightfield from CryEngine.
 /// </summary>
 public class HeightfieldGeometry : GeometryBase
 {
+    /// <summary>Maximum indices per mesh patch (port of PHYS_MAX_INDICES from CryPhysics).</summary>
+    public const int PHYS_MAX_INDICES = 2048;
+
     public override int GeomType => GeomTypes.Heightfield;
 
     /// <summary>The heightfield primitive data.</summary>
@@ -332,5 +399,155 @@ public class HeightfieldGeometry : GeometryBase
     {
         return _patchVertices.Length * 12 + _patchIndices.Length * 4 +
                _patchNormals.Length * 12 + _patchIds.Length;
+    }
+
+    /// <summary>Last origin offset applied during PrepareForIntersectionTest (port of m_lastOriginOffs).</summary>
+    private PhysVector3 _lastOriginOffs;
+
+    /// <summary>
+    /// Extrude a box along a sweep direction. Produces a new oriented box that contains
+    /// the swept volume of the source box. Port of ::ExtrudeBox in utils.cpp:364.
+    /// </summary>
+    private static void ExtrudeBox(Box pbox, in PhysVector3 dir, float step, Box pextbox)
+    {
+        float proj, maxproj;
+        int i;
+
+        // maxproj = (row0 - dir*(dir*row0)).len2 * size[0]
+        PhysVector3 r0 = pbox.Basis.GetRow(0);
+        PhysVector3 r1 = pbox.Basis.GetRow(1);
+        PhysVector3 r2 = pbox.Basis.GetRow(2);
+
+        maxproj = (r0 - dir * dir.Dot(r0)).LengthSq() * pbox.Size.X;
+        proj = (r1 - dir * dir.Dot(r1)).LengthSq() * pbox.Size.Y;
+        i = (maxproj - proj) < 0 ? 1 : 0; maxproj = MathF.Max(proj, maxproj);
+        proj = (r2 - dir * dir.Dot(r2)).LengthSq() * pbox.Size.Z;
+        i |= ((maxproj - proj) < 0 ? 1 : 0) << 1;
+        // i &= 2|(i>>1^1)  — selects the axis with the most perpendicular projection to dir
+        i &= 2 | ((i >> 1) ^ 1);
+
+        // pextbox->Basis.SetRow(2,dir)
+        pextbox.Basis.SetRow(2, dir);
+        // row0 = (row_i - dir*(dir*row_i)).normalized()
+        PhysVector3 ri = pbox.Basis.GetRow(i);
+        pextbox.Basis.SetRow(0, (ri - dir * dir.Dot(ri)).Normalized());
+        // row1 = row2 ^ row0
+        pextbox.Basis.SetRow(1, pextbox.Basis.GetRow(2) ^ pextbox.Basis.GetRow(0));
+        pextbox.IsOriented = true;
+
+        // mtx = pextbox->Basis * pbox->Basis.T()
+        PhysMatrix33 mtx = pextbox.Basis * pbox.Basis.Transposed();
+        // size = mtx.Fabs() * pbox->size;  size.z += fabs(step)*0.5
+        PhysMatrix33 mtxAbs = new PhysMatrix33(
+            MathF.Abs(mtx.M00), MathF.Abs(mtx.M01), MathF.Abs(mtx.M02),
+            MathF.Abs(mtx.M10), MathF.Abs(mtx.M11), MathF.Abs(mtx.M12),
+            MathF.Abs(mtx.M20), MathF.Abs(mtx.M21), MathF.Abs(mtx.M22));
+        PhysVector3 newSize = mtxAbs * pbox.Size;
+        newSize.Z += MathF.Abs(step) * 0.5f;
+        pextbox.Size = newSize;
+        pextbox.Center = pbox.Center + dir * (step * 0.5f);
+    }
+
+    /// <summary>
+    /// Prepare the heightfield for an intersection test against a collider.
+    /// Port of CHeightfield::PrepareForIntersectionTest (heightfieldgeom.cpp:198-285).
+    /// </summary>
+    public override void PrepareForIntersectionTest(GeometryUnderTest pGTest, GeometryBase collider,
+        GeometryUnderTest pGTestColl, bool bKeepPrevContacts)
+    {
+        Box abox = new Box();
+        Box aboxext = new Box();
+        Box pbox;
+
+        // pCollider->GetBVTree()->GetBBox(&abox)
+        if (collider.Tree is HeightfieldBV hfColl)
+            hfColl.GetBBox(ref abox);
+        else
+            collider.GetBBox(ref abox);
+
+        if (pGTestColl != null && pGTestColl.SweepStep > 0)
+        {
+            ExtrudeBox(abox, pGTestColl.SweepDirLoc, pGTestColl.SweepStepLoc, aboxext);
+            pbox = aboxext;
+        }
+        else
+        {
+            pbox = abox;
+        }
+
+        int idxMax = PHYS_MAX_INDICES;
+
+        // project_box_on_grid(pbox,&m_hf, pGTest, ix,iy,sx,sy,minz)
+        HeightfieldBV.ProjectBoxOnGrid(pbox, Hf, out int ix, out int iy, out int sx, out int sy, out float minz);
+
+        // if ((sx-1 | sy-1 | idx_max-(sx+1)*(sy+1)) < 0) return 0
+        if (((sx - 1) | (sy - 1) | (idxMax - (sx + 1) * (sy + 1))) < 0)
+            return;
+
+        var origin = new PhysVector3(ix * Hf.Step.X, iy * Hf.Step.Y, 0);
+        if (pGTest != null)
+        {
+            _lastOriginOffs = pGTest.R * origin * pGTest.Scale;
+            pGTest.Offset += _lastOriginOffs;
+        }
+
+        // Rebuild patch only if region changed
+        if (((_hfTree.PatchStart.X - ix) | (_hfTree.PatchStart.Y - iy) |
+             (_hfTree.PatchSize.X - sx) | (_hfTree.PatchSize.Y - sy)) != 0)
+        {
+            // Compute heights for the patch and check minz vs maxh early-out
+            int heightsLen = (sx + 1) * (sy + 1);
+            float[] heights = new float[heightsLen];
+            float maxh = heights[0] = Hf.GetHeightAt(ix, iy);
+            for (int ii = ix; ii <= ix + sx; ii++)
+                for (int jj = iy; jj <= iy + sy; jj++)
+                {
+                    float h = Hf.GetHeightAt(ii, jj);
+                    heights[(ii - ix) + (jj - iy) * (sx + 1)] = h;
+                    if (h > maxh) maxh = h;
+                }
+            if (minz > maxh)
+                return;
+
+            // Build the patch mesh (handled by existing BuildPatch)
+            BuildPatch(ix, iy, sx, sy);
+
+            // Match C++: holes (id==-1) remove connectivity — applied inside BuildPatch equivalent.
+            // (TriMesh topology is optional here; kept as a no-op when topology isn't tracked.)
+        }
+        else if (minz > _hfTree.MaxHeight)
+        {
+            return;
+        }
+
+        // Clear used-tri bitmap (m_Tree.m_pUsedTriMap)
+        if (_hfTree.UsedTriMap != null)
+        {
+            for (int k = (_patchTriCount - 1) >> 5; k >= 0 && k < _hfTree.UsedTriMap.Length; k--)
+                _hfTree.UsedTriMap[k] = 0;
+        }
+
+        if (pGTest == null || pGTest.BStopIntersection)
+            return;
+
+        // res = CTriMesh::PrepareForIntersectionTest(...)  — delegate to base class
+        base.PrepareForIntersectionTest(pGTest, collider, pGTestColl, bKeepPrevContacts);
+    }
+
+    /// <summary>
+    /// Intersect against another geometry.
+    /// Port of CHeightfield::Intersect (heightfieldgeom.cpp:91-196).
+    /// Ray branch returns 0 (not hot for ships); non-ray path delegates to base class.
+    /// </summary>
+    public override int Intersect(GeometryBase other, ref GeomContact[] contacts)
+    {
+        if (other.GeomType == GeomTypes.Ray)
+        {
+            // Full ray-heightfield traversal (DrawRayOnGrid + hf_cell_checker) is not yet ported;
+            // ray path is not exercised in ArcheAge ship-vs-terrain usage.
+            return 0;
+        }
+
+        return base.Intersect(other, ref contacts);
     }
 }

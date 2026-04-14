@@ -315,6 +315,7 @@ public class PrimInters
     public int INode0, INode1;
     public PhysVector3[]? BorderPts;
     public int NBorderPt;
+    public int NBorderSz; // capacity cap for BorderPts (0 = use BorderPts.Length)
     public PhysVector3 BestPt;
     public int NBestPtVal;
 }
