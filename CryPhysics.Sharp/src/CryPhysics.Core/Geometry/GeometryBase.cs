@@ -203,45 +203,98 @@ public abstract class GeometryBase : IGeometry
     }
 
     /// <summary>
-    /// BVTree-driven intersection between two geometries.
-    /// Simplified port of IntersectBVs from geometry.cpp.
+    /// BVTree-driven intersection between two geometries. Literal port of
+    /// IntersectBVs from geometry.cpp:54-137 — recursive BV-vs-BV traversal with
+    /// largest-first split priority and leaf-vs-leaf primitive pair checks.
     /// </summary>
     private static int IntersectBVTrees(GeometryUnderTest[] gtest, GeomContact[] contacts)
     {
-        int nContacts = 0;
-        var tree0 = gtest[0].BVtree!;
-        var tree1 = gtest[1].BVtree!;
+        var tree0 = gtest[0].BVtree;
+        var tree1 = gtest[1].BVtree;
+        if (tree0 == null || tree1 == null) return IntersectDirect(gtest, contacts);
 
-        // Get leaf primitives from both trees and test all pairs
-        // This is a simplified version - full port would do hierarchical BV overlap testing
-        var prims0 = tree0.GetAllPrimitives(gtest[0].Geometry!);
-        var prims1 = tree1.GetAllPrimitives(gtest[1].Geometry!);
+        // Seed with the root BVs of each tree (untransformed for tree0, world-transformed for tree1).
+        tree0.GetNodeBVRef(out var pBV1, 0, gtest[0].ICaller);
+        tree1.GetNodeBVRef(gtest[1].RRel, gtest[1].OffsetRel, gtest[1].ScaleRel, out var pBV2, 0, gtest[1].ICaller);
 
-        var checker = IntersectionChecker.Instance;
-        var pinters = new PrimInters();
+        return IntersectBVs(gtest, pBV1, pBV2);
+    }
 
-        foreach (var (prim0, idx0) in prims0)
+    /// Literal port of IntersectBVs (geometry.cpp:54-137). Recurses by splitting the
+    /// higher-priority BV until both sides are leaves, then iterates the primitive
+    /// buffers and dispatches to <see cref="RegisterIntersection"/>.
+    private static int IntersectBVs(GeometryUnderTest[] pGTest, BV pBV1, BV pBV2)
+    {
+        if (!BVOverlap.Check(pBV1.Type, pBV2.Type, pBV1, pBV2))
+            return 0;
+
+        float split1 = pGTest[0].BVtree!.SplitPriority(pBV1);
+        float split2 = pGTest[1].BVtree!.SplitPriority(pBV2);
+
+        if (split1 > split2 && split1 > 0)
         {
-            foreach (var (prim1, idx1) in prims1)
-            {
-                if (nContacts >= contacts.Length) break;
-
-                // Transform prim1 into prim0's frame (or use world space)
-                int result = checker.Check(prim0.TypeId, prim1.TypeId, prim0, prim1, pinters);
-                if (result > 0)
-                {
-                    contacts[nContacts] = new GeomContact
-                    {
-                        Pt = pinters.Pt0,
-                        N = pinters.Normal,
-                        IPrim = { [0] = idx0, [1] = idx1 },
-                    };
-                    nContacts++;
-                }
-            }
+            // Split first BV. C++ uses tree-local BVs for tree0, world-relative for tree1.
+            pGTest[0].BVtree.GetNodeChildrenBVs(pBV1, out var pc1, out var pc2, pGTest[0].ICaller);
+            int res = 0;
+            if (pc1 != null) res += IntersectBVs(pGTest, pc1, pBV2);
+            if (pGTest[0].BStopIntersection || pGTest[1].BStopIntersection) return res;
+            if (pc2 != null) res += IntersectBVs(pGTest, pc2, pBV2);
+            pGTest[0].BVtree.ReleaseLastBVs(pGTest[0].ICaller);
+            return res;
+        }
+        if (split2 > 0)
+        {
+            // Split second BV in world-relative space.
+            pGTest[1].BVtree.GetNodeChildrenBVs(pGTest[1].RRel, pGTest[1].OffsetRel, pGTest[1].ScaleRel,
+                pBV2, out var pc1, out var pc2, pGTest[0].ICaller);
+            int res = 0;
+            if (pc1 != null) res += IntersectBVs(pGTest, pBV1, pc1);
+            if (pGTest[0].BStopIntersection || pGTest[1].BStopIntersection) return res;
+            if (pc2 != null) res += IntersectBVs(pGTest, pBV1, pc2);
+            pGTest[1].BVtree.ReleaseLastBVs(pGTest[0].ICaller);
+            return res;
         }
 
-        return nContacts;
+        // Both BVs are leaves — fetch primitive buffers and pair-test.
+        var inters = new PrimInters
+        {
+            BorderPts = new PhysVector3[16],
+            NBorderPt = 0,
+            NBestPtVal = 0,
+            NBorderSz = 16
+        };
+
+        int nPrims1 = pGTest[0].BVtree.GetNodeContents(pBV1.INode, pBV2, 0, 1, pGTest[0], pGTest[1]);
+        int nPrims2 = pGTest[1].BVtree.GetNodeContents(pBV2.INode, pBV1, 0, 0, pGTest[1], pGTest[0]);
+
+        // Fall back to single primitive when buffer is empty (single-prim trees).
+        var prim1Default = pGTest[0].Geometry?.GetPrimitive();
+        var prim2Default = pGTest[1].Geometry?.GetPrimitive();
+        int n1 = System.Math.Max(1, nPrims1);
+        int n2 = System.Math.Max(1, nPrims2);
+
+        var checker = IntersectionChecker.Instance;
+        int resLeaf = 0;
+        for (int i = 0; i < n1; i++)
+        {
+            var prim1 = (pGTest[0].PrimBuf != null && i < pGTest[0].SzPrim)
+                ? (Primitive)pGTest[0].PrimBuf[i] : prim1Default;
+            if (prim1 == null) continue;
+            for (int j = 0; j < n2; j++)
+            {
+                var prim2 = (pGTest[1].PrimBuf != null && j < pGTest[1].SzPrim)
+                    ? (Primitive)pGTest[1].PrimBuf[j] : prim2Default;
+                if (prim2 == null) continue;
+                if (checker.Check(prim1.TypeId, prim2.TypeId, prim1, prim2, inters) <= 0) continue;
+
+                inters.INode0 = pBV1.INode;
+                inters.INode1 = pBV2.INode;
+                resLeaf += pGTest[0].Geometry!.RegisterIntersection(prim1, prim2, pGTest[0], pGTest[1], inters);
+                if (pGTest[0].BStopIntersection || pGTest[1].BStopIntersection) return resLeaf;
+                inters.NBorderPt = inters.NBestPtVal = 0;
+            }
+        }
+        return resLeaf;
     }
 
     /// <summary>
@@ -306,6 +359,31 @@ public abstract class GeometryBase : IGeometry
     public virtual int UnprojectSphere(PhysVector3 center, float r, float rsep, ref Primitives.Contact pcontact)
     {
         return 0;
+    }
+
+    /// <summary>
+    /// Minimum distance between two vertices for them to be considered distinct.
+    /// Port of CGeometry::m_minVtxDist (geometry.h). Subclasses set this during build.
+    /// </summary>
+    public float MinVtxDist { get; set; } = 1e-4f;
+
+    /// <summary>
+    /// Append a primitive-pair intersection to the contact buffer. Default writes a
+    /// minimal GeomContact. Triangle-mesh subclasses override to merge contacts and
+    /// build areas. Port of CGeometry::RegisterIntersection (geometry.h virtual).
+    /// </summary>
+    public virtual int RegisterIntersection(Primitive prim1, Primitive prim2,
+        GeometryUnderTest pGTest, GeometryUnderTest pGTestOp, Primitives.PrimInters inters)
+    {
+        if (pGTest.Contacts == null || pGTest.NContacts >= pGTest.NMaxContacts) return 0;
+        var c = pGTest.Contacts[pGTest.NContacts];
+        if (c == null) c = new GeomContact();
+        c.Pt = inters.Pt0;
+        c.N = inters.Normal;
+        c.IPrim[0] = inters.INode0;
+        c.IPrim[1] = inters.INode1;
+        pGTest.Contacts[pGTest.NContacts++] = c;
+        return 1;
     }
 
     /// <summary>Collision priority for contact normal direction.</summary>

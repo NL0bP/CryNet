@@ -186,4 +186,99 @@ public class AABBTree : BVTree
     {
         return _nodes.Length * 40 + _triIndices.Length * 4; // Approximate
     }
+
+    // ----------------------------------------------------------------------------
+    // Literal C++ CBVTree API overrides (aabbtree.cpp).
+    // ----------------------------------------------------------------------------
+
+    public override int GetTypeId() => BVTreeTypes.AABB;
+
+    /// Port of CAABBTree::GetNodeBV(BV*&, int iNode, int iCaller) — fills a BBox
+    /// in tree-local space.
+    public override void GetNodeBVRef(out BV pBV, int iNode = 0, int iCaller = 0)
+    {
+        var bb = new BBox { Type = BVTreeTypes.AABB, INode = iNode };
+        if (iNode >= 0 && iNode < _nodeCount)
+        {
+            ref var node = ref _nodes[iNode];
+            bb.ABox.Center = (node.Min + node.Max) * 0.5f;
+            bb.ABox.Size = (node.Max - node.Min) * 0.5f;
+            bb.ABox.Basis = PhysMatrix33.Identity;
+            bb.ABox.IsOriented = false;
+        }
+        pBV = bb;
+    }
+
+    /// Port of CAABBTree::GetNodeBV(const Matrix33 &Rw, const Vec3 &offsw, float scalew, BV*&, ...).
+    /// Transforms the tree-local AABB into world space producing an OBB.
+    public override void GetNodeBVRef(in PhysMatrix33 Rw, in PhysVector3 offsw, float scalew,
+        out BV pBV, int iNode = 0, int iCaller = 0)
+    {
+        var bb = new BBox { Type = BVTreeTypes.AABB, INode = iNode };
+        if (iNode >= 0 && iNode < _nodeCount)
+        {
+            ref var node = ref _nodes[iNode];
+            var center = (node.Min + node.Max) * 0.5f;
+            var size = (node.Max - node.Min) * 0.5f;
+            bb.ABox.Center = Rw * (center * scalew) + offsw;
+            bb.ABox.Size = size * scalew;
+            bb.ABox.Basis = Rw.Transposed();
+            bb.ABox.IsOriented = true;
+        }
+        pBV = bb;
+    }
+
+    /// Port of CAABBTree::GetNodeChildrenBVs(...). Returns the AABBs of the two
+    /// children (or null for leaves).
+    public override void GetNodeChildrenBVs(BV pBVParent, out BV? pBVChild1, out BV? pBVChild2, int iCaller = 0)
+    {
+        pBVChild1 = pBVChild2 = null;
+        if (pBVParent.INode < 0 || pBVParent.INode >= _nodeCount) return;
+        ref var node = ref _nodes[pBVParent.INode];
+        if (node.IsLeaf) return;
+        GetNodeBVRef(out var c1, node.ChildLeft, iCaller); pBVChild1 = c1;
+        GetNodeBVRef(out var c2, node.ChildRight, iCaller); pBVChild2 = c2;
+    }
+
+    public override void GetNodeChildrenBVs(in PhysMatrix33 Rw, in PhysVector3 offsw, float scalew,
+        BV pBVParent, out BV? pBVChild1, out BV? pBVChild2, int iCaller = 0)
+    {
+        pBVChild1 = pBVChild2 = null;
+        if (pBVParent.INode < 0 || pBVParent.INode >= _nodeCount) return;
+        ref var node = ref _nodes[pBVParent.INode];
+        if (node.IsLeaf) return;
+        GetNodeBVRef(Rw, offsw, scalew, out var c1, node.ChildLeft, iCaller); pBVChild1 = c1;
+        GetNodeBVRef(Rw, offsw, scalew, out var c2, node.ChildRight, iCaller); pBVChild2 = c2;
+    }
+
+    /// Port of CAABBTree::GetNodeContents(int iNode, BV *pBVCollider, int bColliderUsed,
+    /// int bColliderLocal, geometry_under_test *pGTest, geometry_under_test *pGTestOp).
+    /// For an AABB tree the collider's BV is irrelevant — we just dump leaf triangles
+    /// into <see cref="Geometry.GeometryUnderTest.PrimBuf"/>. Returns the count.
+    public override int GetNodeContents(int iNode, BV pBVCollider, int bColliderUsed, int bColliderLocal,
+        Geometry.GeometryUnderTest pGTest, Geometry.GeometryUnderTest pGTestOp)
+    {
+        if (iNode < 0 || iNode >= _nodeCount) return 0;
+        ref var node = ref _nodes[iNode];
+        if (!node.IsLeaf) return 0;
+
+        // Allocate IndexedTriangle scratch on demand. The caller iterates the buffer
+        // via its `SzPrim` field. We only emit indices here — the geometry resolves them.
+        if (pGTest.PrimBuf == null || pGTest.PrimBuf.Length < node.NumTris)
+            pGTest.PrimBuf = new IndexedTriangle[System.Math.Max(node.NumTris, 16)];
+        for (int i = 0; i < node.NumTris; i++)
+        {
+            var tri = new IndexedTriangle { Index = _triIndices[node.StartTri + i] };
+            pGTest.PrimBuf[i] = tri;
+        }
+        pGTest.SzPrim = node.NumTris;
+        return node.NumTris;
+    }
+
+    public override int GetNodeContentsIdx(int iNode, out int iStartPrim)
+    {
+        if (iNode < 0 || iNode >= _nodeCount) { iStartPrim = 0; return 0; }
+        iStartPrim = _nodes[iNode].StartTri;
+        return _nodes[iNode].NumTris;
+    }
 }

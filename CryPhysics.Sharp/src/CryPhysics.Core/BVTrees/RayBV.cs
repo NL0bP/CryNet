@@ -107,4 +107,30 @@ public class RayBV : BVTree
     }
 
     public override int GetMemoryUsage() => 32;
+
+    // Literal C++ CRayBV API overrides (raybv.cpp).
+
+    public override int GetTypeId() => BVTreeTypes.Ray;
+
+    public override void GetNodeBVRef(out BV pBV, int iNode = 0, int iCaller = 0)
+    {
+        pBV = new BVRay { Type = BVTreeTypes.Ray, INode = 0, ARay = Ray };
+    }
+
+    public override void GetNodeBVRef(in PhysMatrix33 Rw, in PhysVector3 offsw, float scalew,
+        out BV pBV, int iNode = 0, int iCaller = 0)
+    {
+        var transformed = Ray == null ? null : new Ray(
+            Rw * (Ray.Origin * scalew) + offsw,
+            Rw * (Ray.Dir * scalew));
+        pBV = new BVRay { Type = BVTreeTypes.Ray, INode = 0, ARay = transformed };
+    }
+
+    public override int GetNodeContents(int iNode, BV pBVCollider, int bColliderUsed, int bColliderLocal,
+        Geometry.GeometryUnderTest pGTest, Geometry.GeometryUnderTest pGTestOp)
+    {
+        // Single primitive (the ray itself).
+        pGTest.SzPrim = 0;
+        return 1;
+    }
 }

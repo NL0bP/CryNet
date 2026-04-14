@@ -175,4 +175,37 @@ public class HeightfieldBV : BVTree
         if (UsedTriMap != null) size += UsedTriMap.Length * 4;
         return size;
     }
+
+    // Literal C++ CHeightfieldBV API overrides (heightfieldbv.cpp).
+
+    public override int GetTypeId() => BVTreeTypes.Heightfield;
+
+    public override void GetNodeBVRef(out BV pBV, int iNode = 0, int iCaller = 0)
+    {
+        // Heightfield BV exposes itself directly so the consumer can step the grid.
+        pBV = new BVHeightfield { Type = BVTreeTypes.Heightfield, INode = 0, Hf = Hf };
+    }
+
+    public override void GetNodeBVRef(in PhysMatrix33 Rw, in PhysVector3 offsw, float scalew,
+        out BV pBV, int iNode = 0, int iCaller = 0)
+    {
+        // Same as local — heightfield handles its own world-transform internally via the geometry.
+        GetNodeBVRef(out pBV, iNode, iCaller);
+    }
+
+    public override int GetNodeContents(int iNode, BV pBVCollider, int bColliderUsed, int bColliderLocal,
+        Geometry.GeometryUnderTest pGTest, Geometry.GeometryUnderTest pGTestOp)
+    {
+        if (Hf == null) return 0;
+        int nTris = PatchSize.X * PatchSize.Y * 2;
+        if (pGTest.PrimBuf == null || pGTest.PrimBuf.Length < nTris)
+            pGTest.PrimBuf = new IndexedTriangle[System.Math.Max(nTris, 16)];
+        for (int i = 0; i < nTris; i++)
+            pGTest.PrimBuf[i] = new IndexedTriangle { Index = i };
+        pGTest.SzPrim = nTris;
+        return nTris;
+    }
+
+    public override void MarkUsedTriangle(int itri, Geometry.GeometryUnderTest pGTest)
+        => MarkUsedTriangle(itri);
 }

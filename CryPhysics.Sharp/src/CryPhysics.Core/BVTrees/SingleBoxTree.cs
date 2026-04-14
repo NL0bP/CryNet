@@ -63,6 +63,34 @@ public class SingleBoxTree : BVTree
         return 1;
     }
 
+    // Literal C++ CSingleBoxTree API overrides (singleboxtree.cpp).
+
+    public override int GetTypeId() => BVTreeTypes.SingleBox;
+
+    public override void GetNodeBVRef(out BV pBV, int iNode = 0, int iCaller = 0)
+    {
+        pBV = new BBox { Type = BVTreeTypes.SingleBox, INode = 0, ABox = _box };
+    }
+
+    public override void GetNodeBVRef(in PhysMatrix33 Rw, in PhysVector3 offsw, float scalew,
+        out BV pBV, int iNode = 0, int iCaller = 0)
+    {
+        var bb = new BBox { Type = BVTreeTypes.SingleBox, INode = 0 };
+        bb.ABox.Center = Rw * (_box.Center * scalew) + offsw;
+        bb.ABox.Size = _box.Size * scalew;
+        bb.ABox.Basis = _box.IsOriented ? _box.Basis * Rw.Transposed() : Rw.Transposed();
+        bb.ABox.IsOriented = true;
+        pBV = bb;
+    }
+
+    public override int GetNodeContents(int iNode, BV pBVCollider, int bColliderUsed, int bColliderLocal,
+        Geometry.GeometryUnderTest pGTest, Geometry.GeometryUnderTest pGTestOp)
+    {
+        // Single primitive — no triangle list.
+        pGTest.SzPrim = 0;
+        return 1;
+    }
+
     public override void Build(PhysVector3[] vertices, int[] indices, int nTris)
     {
         // Compute AABB from vertices

@@ -558,4 +558,72 @@ public class OBBTree : BVTree
         if (_tri2Node != null) size += _tri2Node.Length * 4;
         return size;
     }
+
+    // ----------------------------------------------------------------------------
+    // Literal C++ COBBTree API overrides (obbtree.cpp).
+    // ----------------------------------------------------------------------------
+
+    public override int GetTypeId() => BVTreeTypes.OBB;
+
+    public override void GetNodeBVRef(out BV pBV, int iNode = 0, int iCaller = 0)
+    {
+        var bb = new BBox { Type = BVTreeTypes.OBB, INode = iNode };
+        if (iNode >= 0 && iNode < _nodeCount)
+        {
+            ref var node = ref _nodes[iNode];
+            bb.ABox.Center = node.Center;
+            bb.ABox.Size = node.Size;
+            bb.ABox.Basis = node.GetBasis();
+            bb.ABox.IsOriented = true;
+        }
+        pBV = bb;
+    }
+
+    public override void GetNodeBVRef(in PhysMatrix33 Rw, in PhysVector3 offsw, float scalew,
+        out BV pBV, int iNode = 0, int iCaller = 0)
+    {
+        var bb = new BBox { Type = BVTreeTypes.OBB, INode = iNode };
+        if (iNode >= 0 && iNode < _nodeCount)
+        {
+            ref var node = ref _nodes[iNode];
+            bb.ABox.Center = Rw * (node.Center * scalew) + offsw;
+            bb.ABox.Size = node.Size * scalew;
+            bb.ABox.Basis = node.GetBasis() * Rw.Transposed();
+            bb.ABox.IsOriented = true;
+        }
+        pBV = bb;
+    }
+
+    public override void GetNodeChildrenBVs(BV pBVParent, out BV? pBVChild1, out BV? pBVChild2, int iCaller = 0)
+    {
+        pBVChild1 = pBVChild2 = null;
+        if (pBVParent.INode < 0 || pBVParent.INode >= _nodeCount) return;
+        ref var node = ref _nodes[pBVParent.INode];
+        if (node.IsLeaf) return;
+        GetNodeBVRef(out var c1, node.Child, iCaller); pBVChild1 = c1;
+        GetNodeBVRef(out var c2, node.Child + 1, iCaller); pBVChild2 = c2;
+    }
+
+    public override int GetNodeContents(int iNode, BV pBVCollider, int bColliderUsed, int bColliderLocal,
+        Geometry.GeometryUnderTest pGTest, Geometry.GeometryUnderTest pGTestOp)
+    {
+        if (iNode < 0 || iNode >= _nodeCount) return 0;
+        ref var node = ref _nodes[iNode];
+        if (!node.IsLeaf) return 0;
+        if (pGTest.PrimBuf == null || pGTest.PrimBuf.Length < node.NumTris)
+            pGTest.PrimBuf = new IndexedTriangle[System.Math.Max(node.NumTris, 16)];
+        for (int i = 0; i < node.NumTris; i++)
+            pGTest.PrimBuf[i] = new IndexedTriangle { Index = node.Child + i };
+        pGTest.SzPrim = node.NumTris;
+        return node.NumTris;
+    }
+
+    public override int GetNodeContentsIdx(int iNode, out int iStartPrim)
+    {
+        if (iNode < 0 || iNode >= _nodeCount) { iStartPrim = 0; return 0; }
+        iStartPrim = _nodes[iNode].Child;
+        return _nodes[iNode].NumTris;
+    }
+
+    public override float SplitPriority(BV pBV) => SplitPriority(pBV.INode);
 }
