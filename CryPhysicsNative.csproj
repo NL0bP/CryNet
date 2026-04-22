@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>CryPhysics.Native</RootNamespace>
+    <AssemblyName>CryPhysics.Native</AssemblyName>
+    <PackageId>CryPhysics.Native</PackageId>
+    <Title>CryPhysics.Native</Title>
+    <Description>Managed C# bindings and a small C ABI facade for Lumberyard CryPhysics.</Description>
+    <Authors>ArcheAze contributors</Authors>
+    <Company>ArcheAze contributors</Company>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ArcheAze/CryPhysics.Native</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ArcheAze/CryPhysics.Native</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>CryPhysics;CryEngine;Lumberyard;physics;native;interop</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AAEmu.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="bin\win-x64\CryPhysics.dll" Condition="Exists('bin\win-x64\CryPhysics.dll')">
+      <Link>runtimes\win-x64\native\CryPhysics.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="bin\linux-x64\libCryPhysics.so" Condition="Exists('bin\linux-x64\libCryPhysics.so')">
+      <Link>runtimes\linux-x64\native\libCryPhysics.so</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
